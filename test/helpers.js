@@ -9,7 +9,7 @@ const fs = require("fs");
 const path = require("path");
 const crypto = require("crypto");
 const { migrate, statements } = require("../src/migrate");
-const { createApp } = require("../src/app");
+const { createApp } = require("../src/create-app");
 const auth = require("../src/auth");
 const audit = require("../src/audit");
 
