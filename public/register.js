@@ -14,16 +14,17 @@ function fieldHtml(f) {
   const id = `f-${f.key}`, req = f.required ? ` <span class="req" aria-hidden="true">*</span>` : "";
   const common = `id="${id}" name="${f.key}" aria-describedby="${f.help ? `h-${f.key} ` : ""}e-${f.key}"${f.required ? ` aria-required="true"` : ""}${f.autocomplete ? ` autocomplete="${f.autocomplete}"` : ""}`;
   const options = S.optionsOf(f, ctx);
-  let label = `<label for="${id}">${esc(f.label)}${req}</label>`, control;
+  const text = f.publicLabel || f.label;
+  let label = `<label for="${id}">${esc(text)}${req}</label>`, control;
   if (f.type === "choice") {
-    label = `<span class="field-label" id="l-${f.key}">${esc(f.label)}${req}</span>`;
+    label = `<span class="field-label" id="l-${f.key}">${esc(text)}${req}</span>`;
     control = `<div class="choice-group" role="radiogroup" aria-labelledby="l-${f.key}">${options.map((o) => `<label class="choice"><input type="radio" name="${f.key}" value="${esc(o)}"><span>${esc(o)}</span></label>`).join("")}</div>`;
   } else if (f.type === "select") {
     control = `<select ${common}><option value="">${esc(f.placeholder || "Select…")}</option>${options.map((o) => `<option>${esc(o)}</option>`).join("")}</select>`;
   } else if (f.type === "textarea") {
     control = `<textarea ${common} rows="3" maxlength="${f.maxLength || 200}"></textarea>`;
   } else if (f.type === "checkbox") {
-    label = ""; control = `<label class="check"><input type="checkbox" ${common}><span>${esc(f.label)}</span></label>`;
+    label = ""; control = `<label class="check"><input type="checkbox" ${common}><span>${esc(text)}</span></label>`;
   } else {
     control = `<input type="${f.type || "text"}" ${common}${f.inputmode ? ` inputmode="${f.inputmode}"` : f.type === "tel" ? ` inputmode="tel"` : ""} maxlength="${f.maxLength || 200}"${f.placeholder ? ` placeholder="${esc(f.placeholder)}"` : ""}${f.max ? ` max="${f.max()}"` : ""}>`;
   }

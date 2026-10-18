@@ -62,3 +62,28 @@
 @media(max-width:600px){.register-card{padding:24px 18px 20px}}
 .nav-count-alert{background:var(--accent);color:#fff;font-weight:700;border-radius:10px;padding:1px 7px;font-size:11px}
 .cell-sub{display:block;font-size:11px;color:#8a8a99}
+
+/* Checkboxes inside form fields keep their own size (the full-width text-input rule must not apply). */
+.field .check input[type=checkbox]{width:17px;height:17px;padding:0;border:0;box-shadow:none;flex:0 0 auto}
+.check span{min-width:0}
+
+/* Phones: wide tables (users, registrations, audit log) become stacked cards with labelled fields. */
+@media(max-width:640px){
+  .stack-table{min-width:0!important;width:100%}
+  .stack-table thead{display:none}
+  .stack-table,.stack-table tbody{display:block}
+  .stack-table tr{display:grid;grid-template-columns:1fr 1fr;gap:10px 14px;padding:14px 0;border-bottom:1px solid var(--line)}
+  .stack-table tr[hidden]{display:none}
+  .stack-table td{display:block;padding:0!important;height:auto!important;border:0!important;min-width:0;white-space:normal!important;font-size:13px}
+  .stack-table td[data-label]::before{content:attr(data-label);display:block;font-size:10.5px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:#9a9aa8;margin-bottom:3px}
+  .stack-table td.cell-main{grid-column:1/-1;order:-1}
+  .stack-table td.user-actions{grid-column:1/-1;display:flex!important;flex-wrap:wrap;gap:8px}
+  .stack-table td.user-actions .text-link{flex:1 1 30%;min-height:42px;display:inline-flex;align-items:center;justify-content:center;border:1px solid var(--line);border-radius:9px;padding:0 10px;background:#fff;font-size:13px}
+  .stack-table td a[href^="tel:"]{color:var(--primary);font-weight:600}
+  .audit-table tr.audit-row{grid-template-columns:auto 1fr 1fr}
+  .audit-table td.audit-activity{order:0;grid-column:1/-1;font-size:13.5px;line-height:1.45}
+  .audit-table td.audit-toggle-cell{display:none}
+  .audit-table tr.audit-detail{display:block}
+  .audit-table tr.audit-detail[hidden]{display:none}
+  .audit-table tr.audit-detail td{display:block}
+}

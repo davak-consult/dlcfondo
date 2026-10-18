@@ -270,6 +270,8 @@ const removeMember = guard(async () => {
 
 // ---- Member form (wizard) ---------------------------------------------------------------
 const wiz = {step: 0, reached: 0, mode: "add", member: null, dirty: false, saving: false};
+// Fields that show or hide other fields (e.g. member type, worker), so changes to them re-check the form.
+const CONDITION_KEYS = new Set(FIELDS.flatMap((f) => Object.keys(f.when || {})));
 function fieldHtml(f) {
   if (f.group) return `<div class="field-group field-wide"><h4>${esc(f.group)}</h4>${f.help ? `<p>${esc(f.help)}</p>` : ""}</div>`;
   const id = `f-${f.key}`;
@@ -450,7 +452,7 @@ function onFormInput(event) {
   if (target.id === "consent") { if (target.checked) { $("#consentWrap").classList.remove("has-error"); $("#e-consent").textContent = ""; } return; }
   wiz.dirty = true;
   if (target.name === "kinSameAsParent" || target.name?.startsWith("parent")) syncKin();
-  if (target.name === "role" || target.name === "kinSameAsParent" || target.name === "institution") applyConditions();
+  if (CONDITION_KEYS.has(target.name) || target.name === "kinSameAsParent" || target.name === "institution") applyConditions();
   const f = FIELDS.find((item) => item.key === target.name);
   if (f && target.closest(".field")?.classList.contains("has-error")) showFieldError(f.key, fieldError(f, readForm()));
   if (target.name === "kinSameAsParent" && target.checked) ["kinName", "kinPhone", "kinRelationship"].forEach((key) => showFieldError(key, ""));
@@ -474,7 +476,7 @@ function onStepClick(event) {
 let registrations = [];
 async function loadRegistrations() {
   ({items: registrations} = await api("/api/members/pending"));
-  $("#registrationRows").innerHTML = registrations.map((m) => `<tr data-registration="${m.id}"><td><div class="member-cell"><div class="avatar ${toneFor(m.id)}">${esc(m.initials)}</div><span><strong>${esc(m.name)}</strong><small>${esc(m.role === "Staff" ? m.position : `${m.programme} · ${m.level}`)}</small></span></div></td><td>${esc(m.centre)}<small class="cell-sub">${esc(state.centres.find((c) => c.id === m.centreId)?.institutionShort || "")}</small></td><td>${esc(m.phone)}</td><td>${esc(formatTime(m.createdAt))}</td><td class="user-actions"><button class="text-link" data-registration-action="view">View</button><button class="text-link" data-registration-action="approve">Approve</button><button class="text-link danger-link" data-registration-action="reject">Reject</button></td></tr>`).join("");
+  $("#registrationRows").innerHTML = registrations.map((m) => `<tr data-registration="${m.id}"><td class="cell-main"><div class="member-cell"><div class="avatar ${toneFor(m.id)}">${esc(m.initials)}</div><span><strong>${esc(m.name)}</strong><small>${esc(m.role === "Staff" ? m.position : `${m.programme} · ${m.level}`)}</small></span></div></td><td data-label="Fellowship centre">${esc(m.centre)}<small class="cell-sub">${esc(state.centres.find((c) => c.id === m.centreId)?.institutionShort || "")}</small></td><td data-label="Phone"><a href="tel:${esc(m.phone.replace(/\s/g, ""))}">${esc(m.phone)}</a></td><td data-label="Registered">${esc(formatTime(m.createdAt))}</td><td class="user-actions"><button class="text-link" data-registration-action="view">View</button><button class="text-link" data-registration-action="approve">Approve</button><button class="text-link danger-link" data-registration-action="reject">Reject</button></td></tr>`).join("");
   $("#registrationsEmpty").hidden = registrations.length > 0;
 }
 const registrationAction = guard(async (event) => {
@@ -578,7 +580,7 @@ async function loadUsers() {
     const locked = u.lockedUntil && new Date(u.lockedUntil) > new Date();
     const status = !u.isActive ? ["Deactivated", "status-inactive"] : locked ? ["Locked", "status-new"] : u.mustChangePassword ? ["Awaiting first sign-in", "status-new"] : ["Active", "status-active"];
     const self = u.id === state.user.id;
-    return `<tr data-user="${u.id}"><td><div class="member-cell"><div class="avatar ${toneFor(u.email.length)}">${esc(u.fullName.split(/\s+/).map((p) => p[0]).slice(0, 2).join("").toUpperCase())}</div><span><strong>${esc(u.fullName)}${self ? " (you)" : ""}</strong><small>${esc(u.email)}</small></span></div></td><td>${ROLE_LABELS[u.role]}</td><td>${esc(centreLabel(state.centres.find((c) => c.id === u.centreId)) || "All centres")}</td><td><span class="status-badge ${status[1]}"><i></i>${status[0]}</span></td><td>${u.lastLoginAt ? esc(formatTime(u.lastLoginAt)) : "Never"}</td><td class="user-actions"><button class="text-link" data-user-action="edit">Edit</button><button class="text-link" data-user-action="reset">Reset password</button>${locked ? `<button class="text-link" data-user-action="unlock">Unlock</button>` : ""}${self ? "" : `<button class="text-link ${u.isActive ? "danger-link" : ""}" data-user-action="${u.isActive ? "deactivate" : "activate"}">${u.isActive ? "Deactivate" : "Reactivate"}</button>`}</td></tr>`;
+    return `<tr data-user="${u.id}"><td class="cell-main"><div class="member-cell"><div class="avatar ${toneFor(u.email.length)}">${esc(u.fullName.split(/\s+/).map((p) => p[0]).slice(0, 2).join("").toUpperCase())}</div><span><strong>${esc(u.fullName)}${self ? " (you)" : ""}</strong><small>${esc(u.email)}</small></span></div></td><td data-label="Role">${ROLE_LABELS[u.role]}</td><td data-label="Centre">${esc(centreLabel(state.centres.find((c) => c.id === u.centreId)) || "All centres")}</td><td data-label="Status"><span class="status-badge ${status[1]}"><i></i>${status[0]}</span></td><td data-label="Last sign-in">${u.lastLoginAt ? esc(formatTime(u.lastLoginAt)) : "Never"}</td><td class="user-actions"><button class="text-link" data-user-action="edit">Edit</button><button class="text-link" data-user-action="reset">Reset password</button>${locked ? `<button class="text-link" data-user-action="unlock">Unlock</button>` : ""}${self ? "" : `<button class="text-link ${u.isActive ? "danger-link" : ""}" data-user-action="${u.isActive ? "deactivate" : "activate"}">${u.isActive ? "Deactivate" : "Reactivate"}</button>`}</td></tr>`;
   }).join("");
 }
 function openUserForm(user = null) {
@@ -664,7 +666,7 @@ async function loadAudit({open = false} = {}) {
   const {items, total} = await api(`/api/audit?${params}`);
   if (ticket !== auditRequest) return;
   auditItems = items;
-  $("#auditRows").innerHTML = items.map((e) => `<tr class="audit-row sev-${A.severity(e)}" data-seq="${e.seq}" tabindex="0" aria-expanded="false"><td>#${e.seq}</td><td class="audit-when">${esc(new Date(e.ts).toLocaleDateString("en-GB", {day: "numeric", month: "short", year: "numeric"}))}<small>${esc(new Date(e.ts).toLocaleTimeString("en-GB"))}</small></td><td>${esc(e.actor_name || "Not signed in")}<small class="audit-sub">${esc(e.actor_role ? `${e.actor_role}${e.actor_centre ? ` · ${e.actor_centre}` : ""}` : e.ip || "")}</small></td><td><span class="cat-badge">${esc(A.category(e))}</span>${esc(A.describe(e))}</td><td><span class="row-more audit-toggle" aria-hidden="true">›</span></td></tr><tr class="audit-detail" data-detail="${e.seq}" hidden><td colspan="5"></td></tr>`).join("");
+  $("#auditRows").innerHTML = items.map((e) => `<tr class="audit-row sev-${A.severity(e)}" data-seq="${e.seq}" tabindex="0" aria-expanded="false"><td data-label="Entry">#${e.seq}</td><td class="audit-when" data-label="When">${esc(new Date(e.ts).toLocaleDateString("en-GB", {day: "numeric", month: "short", year: "numeric"}))}<small>${esc(new Date(e.ts).toLocaleTimeString("en-GB"))}</small></td><td data-label="Who">${esc(e.actor_name || "Not signed in")}<small class="audit-sub">${esc(e.actor_role ? `${e.actor_role}${e.actor_centre ? ` · ${e.actor_centre}` : ""}` : e.ip || "")}</small></td><td class="cell-main audit-activity"><span class="cat-badge">${esc(A.category(e))}</span>${esc(A.describe(e))}</td><td class="audit-toggle-cell"><span class="row-more audit-toggle" aria-hidden="true">›</span></td></tr><tr class="audit-detail" data-detail="${e.seq}" hidden><td colspan="5"></td></tr>`).join("");
   $("#auditEmpty").hidden = items.length > 0;
   $("#auditShown").textContent = fmt(items.length);
   $("#auditTotal").textContent = fmt(total);

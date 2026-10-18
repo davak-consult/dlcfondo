@@ -21,7 +21,8 @@
   const validDob = (v) => { const base = notFuture(v); if (base) return base; const age = (Date.now() - new Date(v + "T00:00:00Z")) / 31557600000; return age < 12 || age > 100 ? "Check the date of birth — the age looks unlikely." : ""; };
   const validYear = (v) => /^\d{4}$/.test(v) && +v >= 1970 && +v <= new Date().getFullYear() ? "" : `Enter a year between 1970 and ${new Date().getFullYear()}.`;
   const formatPhone = (v) => { if (!v || validPhone(v)) return v; const local = phoneDigits(v).replace(/^\+?234/, "0"); return `${local.slice(0, 4)} ${local.slice(4, 7)} ${local.slice(7)}`; };
-  const student = {role: "Student"}, staff = {role: "Staff"};
+  // "*" in a condition means "any answer given", e.g. academic details appear once an institution is chosen.
+  const chosen = {institution: "*"}, student = {role: "Student", ...chosen}, staff = {role: "Staff", ...chosen}, worker = {isWorker: "Yes"};
 
   const STEPS = [
     {id: "personal", title: "Personal", heading: "Personal details", intro: "Who is this member and how can we reach them?", fields: [
@@ -40,11 +41,11 @@
     {id: "campus", title: "Campus", heading: "Campus details", intro: "Where this member studies or works.", fields: [
       {key: "role", label: "Member type", type: "choice", options: ["Student", "Staff"], required: true, wide: true},
       {key: "institution", label: "Institution", type: "select", options: "institutions", required: true, wide: true},
-      {key: "centre", label: "Fellowship centre", type: "select", options: "centres", required: true, wide: true, placeholder: "Select a fellowship centre", help: "The centre under this institution that the member attends"},
-      {key: "faculty", label: "Faculty / school", when: student},
+      {key: "centre", label: "Fellowship centre", type: "select", options: "centres", required: true, wide: true, placeholder: "Select a fellowship centre", help: "The centre under this institution that the member attends", when: chosen},
+      {key: "faculty", label: "Faculty / school", required: true, when: student, help: "e.g. Faculty of Science"},
       {key: "department", label: "Department", required: true, when: student},
-      {key: "programme", label: "Course of study", required: true, when: student, help: "e.g. B.Sc. Nursing Science"},
       {key: "level", label: "Current level", type: "select", options: LEVELS, required: true, when: student, placeholder: "Select level"},
+      {key: "programme", label: "Course of study", required: true, when: student, help: "e.g. B.Sc. Nursing Science"},
       {key: "matricNo", label: "Matric number", when: student, maxLength: 40},
       {key: "admissionYear", label: "Year of admission", when: student, validate: validYear, inputmode: "numeric", maxLength: 4, placeholder: "e.g. 2024"},
       {key: "residence", label: "Hostel / campus address", wide: true, when: student, help: "Where they can be visited during the semester", maxLength: 300},
@@ -59,8 +60,9 @@
       {key: "bornAgain", label: "Born again?", type: "choice", options: ["Yes", "No", "Not sure"]},
       {key: "waterBaptism", label: "Water baptism", type: "choice", options: ["Yes", "No"]},
       {key: "holySpirit", label: "Holy Spirit baptism", type: "choice", options: ["Yes", "No"]},
-      {key: "unit", label: "Workers’ unit", type: "select", options: UNITS, placeholder: "Select a unit"},
-      {key: "leadership", label: "Leadership role", help: "e.g. Centre coordinator, unit leader"},
+      {key: "isWorker", label: "Fellowship worker?", publicLabel: "Are you a worker?", type: "choice", options: ["Yes", "No"], required: true, help: "Workers serve in a unit such as the choir, ushering or evangelism."},
+      {key: "unit", label: "Workers’ unit", publicLabel: "Which unit do you serve in?", type: "select", options: UNITS, placeholder: "Select a unit", required: true, when: worker},
+      {key: "leadership", label: "Leadership role", publicLabel: "Do you hold a leadership role?", help: "e.g. Centre coordinator, unit leader. Leave blank if none.", when: worker},
       {key: "homeChurch", label: "Home church / branch", help: "Deeper Life branch attended at home"},
       {key: "notes", label: "Pastoral notes", type: "textarea", staffOnly: true, wide: true, maxLength: 2000, help: "Prayer points or follow-up notes. Visible to pastors who can open this record."}
     ]},
@@ -79,7 +81,7 @@
     {id: "review", title: "Review", heading: "Review and save", intro: "Check everything is correct before saving.", fields: []}
   ];
   const FIELDS = STEPS.flatMap((step) => step.fields.filter((f) => f.key));
-  const fieldShown = (f, data) => !f.when || Object.entries(f.when).every(([key, value]) => data[key] === value);
+  const fieldShown = (f, data) => !f.when || Object.entries(f.when).every(([key, value]) => value === "*" ? !!data[key] : data[key] === value);
   // ctx lists what this user may choose: {institutions: [...], centres: {institutionName: [centreName, ...]}}.
   function optionsOf(f, ctx = {}, data = {}) {
     if (f.options === "institutions") return ctx.institutions || [];

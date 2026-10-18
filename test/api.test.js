@@ -98,16 +98,30 @@ describe("members", () => {
     assert.equal(last.action, "member.create");
     assert.equal(last.target_id, String(memberId));
   });
+  test("only workers have a unit: required for workers, cleared for non-workers", async () => {
+    const res = await admin.post("/api/members").send(h.validMember({ isWorker: "Yes", phone: "08030000020" }));
+    assert.equal(res.status, 400);
+    assert.ok(res.body.errors.unit);
+    assert.ok((await admin.post("/api/members").send(h.validMember({ isWorker: "", phone: "08030000021" }))).body.errors.isWorker);
+    const ok = await admin.post("/api/members").send(h.validMember({ isWorker: "No", unit: "Choir", leadership: "Unit leader", phone: "08030000022", firstName: "Nonworker" }));
+    assert.equal(ok.status, 201);
+    assert.deepEqual([ok.body.unit, ok.body.leadership], ["", ""]);
+  });
+  test("students must give their faculty, department and level", async () => {
+    const res = await admin.post("/api/members").send(h.validMember({ faculty: "", department: "", level: "", phone: "08030000023" }));
+    assert.equal(res.status, 400);
+    assert.deepEqual(["faculty", "department", "level"].filter((k) => res.body.errors[k]), ["faculty", "department", "level"]);
+  });
   test("viewing a profile is audited", async () => {
     await admin.get(`/api/members/${memberId}`).expect(200);
     assert.equal((await h.lastAudit()).action, "member.view");
   });
   test("update records a field-level diff", async () => {
-    const res = await admin.put(`/api/members/${memberId}`).send({ ...h.validMember({ status: "Active", unit: "Choir" }), updatedAt });
+    const res = await admin.put(`/api/members/${memberId}`).send({ ...h.validMember({ status: "Active", isWorker: "Yes", unit: "Choir" }), updatedAt });
     assert.equal(res.status, 200);
     const last = await h.lastAudit();
     assert.equal(last.action, "member.update");
-    assert.deepEqual(last.details.changes.map((c) => [c.field, c.from, c.to]), [["status", "New member", "Active"], ["unit", "", "Choir"]]);
+    assert.deepEqual(last.details.changes.map((c) => [c.field, c.from, c.to]), [["status", "New member", "Active"], ["isWorker", "No", "Yes"], ["unit", "", "Choir"]]);
   });
   test("a stale edit is refused instead of overwriting newer changes", async () => {
     const res = await admin.put(`/api/members/${memberId}`).send({ ...h.validMember(), updatedAt });
