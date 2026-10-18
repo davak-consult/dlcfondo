@@ -1,0 +1,31 @@
+# Local development and testing. For production, see README.md ("Deploying").
+services:
+  db:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: dlcf
+      POSTGRES_PASSWORD: dlcf
+      POSTGRES_DB: dlcf
+    ports:
+      - "127.0.0.1:${DB_PORT:-5433}:5432"
+    volumes:
+      - dbdata:/var/lib/postgresql/data
+      - ./scripts/create-test-db.sql:/docker-entrypoint-initdb.d/create-test-db.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U dlcf"]
+      interval: 2s
+      retries: 30
+  app:
+    build: .
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgres://dlcf:dlcf@db:5432/dlcf
+      COOKIE_SECURE: "false"
+      TRUST_PROXY: "false"
+    ports:
+      - "127.0.0.1:3000:3000"
+    profiles: ["app"]
+volumes:
+  dbdata:

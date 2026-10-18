@@ -1,0 +1,48 @@
+// Maps between the shared member schema (camelCase keys) and the members table.
+const { FIELDS, clean, groupLabel } = require("../public/member-schema.js");
+const { query } = require("./db");
+
+const toColumn = (key) => key.replace(/[A-Z]/g, (c) => `_${c.toLowerCase()}`);
+const STORED = FIELDS.filter((f) => f.key !== "institution");
+const DATE_FIELDS = new Set(STORED.filter((f) => f.type === "date").map((f) => f.key));
+
+let centreCache = null;
+async function centres() {
+  centreCache ||= (await query("SELECT id, code, name, institution FROM centres ORDER BY id")).rows;
+  return centreCache;
+}
+const institutions = async () => (await centres()).map((c) => c.institution);
+
+function fromRow(row, centreList) {
+  const centre = centreList.find((c) => c.id === row.centre_id);
+  const member = { id: Number(row.id), centreId: row.centre_id, institution: centre.institution, centre: centre.name };
+  STORED.forEach((f) => { const value = row[toColumn(f.key)]; member[f.key] = f.type === "checkbox" ? !!value : value ?? ""; });
+  return Object.assign(member, {
+    name: [member.firstName, member.otherNames, member.surname].filter(Boolean).join(" "),
+    initials: `${member.firstName[0] || ""}${member.surname[0] || ""}`.toUpperCase(),
+    course: member.role === "Staff" ? member.position : member.programme,
+    levelLabel: member.role === "Staff" ? "Staff" : member.level,
+    createdAt: row.created_at?.toISOString?.() ?? row.created_at,
+    updatedAt: row.updated_at?.toISOString?.() ?? row.updated_at
+  });
+}
+
+// Column list and values for INSERT/UPDATE, from cleaned data.
+function toColumns(data, centreId) {
+  const columns = ["centre_id"], values = [centreId];
+  STORED.forEach((f) => { columns.push(toColumn(f.key)); values.push(DATE_FIELDS.has(f.key) && !data[f.key] ? null : data[f.key]); });
+  return { columns, values };
+}
+
+function diff(before, after) {
+  return FIELDS.filter((f) => f.type !== "checkbox" && String(before[f.key] ?? "") !== String(after[f.key] ?? ""))
+    .map((f) => ({ field: f.key, label: groupLabel(f), from: before[f.key] ?? "", to: after[f.key] ?? "" }));
+}
+
+function snapshot(member) {
+  return Object.fromEntries(FIELDS.filter((f) => f.type !== "checkbox" && member[f.key]).map((f) => [f.key, member[f.key]]));
+}
+
+const target = (member) => ({ type: "member", id: member.id, label: member.name });
+
+module.exports = { centres, institutions, fromRow, toColumns, diff, snapshot, target, clean, toColumn, STORED };

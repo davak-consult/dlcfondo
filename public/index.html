@@ -1,0 +1,143 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#3e4095"><meta name="description" content="Member management for Deeper Life Campus Fellowship Ondo Region.">
+  <title>DLCF Ondo Region | Fellowship directory</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="icon" href="./images/dlcf-logo.png" type="image/png">
+  <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+  <div class="boot" id="boot"><img src="./images/dlcf-logo.png" alt="" width="64" height="64"><span>Loading…</span></div>
+
+  <!-- Sign in -->
+  <main class="auth-screen" id="loginScreen" hidden>
+    <form class="auth-card" id="loginForm" novalidate>
+      <img src="./images/dlcf-logo.png" alt="DLCF logo" width="72" height="72">
+      <h1>DLCF Ondo Region</h1>
+      <p class="auth-sub">Sign in to the member management dashboard.</p>
+      <p class="auth-notice" id="loginNotice" hidden></p>
+      <div class="field"><label for="loginEmail">Email address</label><input id="loginEmail" name="email" type="email" autocomplete="username" required></div>
+      <div class="field"><label for="loginPassword">Password</label><div class="password-wrap"><input id="loginPassword" name="password" type="password" autocomplete="current-password" required><button type="button" class="reveal" data-reveal="loginPassword" aria-label="Show password">Show</button></div></div>
+      <p class="form-error" id="loginError" role="alert" hidden></p>
+      <button class="button button-primary auth-submit" type="submit" id="loginSubmit">Sign in</button>
+      <p class="auth-foot">Forgotten your password? Ask the regional admin to reset it.</p>
+    </form>
+  </main>
+
+  <!-- Change password (forced after a temporary password, or by choice) -->
+  <main class="auth-screen" id="passwordScreen" hidden>
+    <form class="auth-card" id="passwordForm" novalidate>
+      <img src="./images/dlcf-logo.png" alt="DLCF logo" width="56" height="56">
+      <h1 id="passwordTitle">Choose a new password</h1>
+      <p class="auth-sub" id="passwordIntro">You signed in with a temporary password. Choose your own to continue.</p>
+      <div class="field"><label for="currentPassword">Current password</label><input id="currentPassword" type="password" autocomplete="current-password" required><small class="error" id="e-currentPassword"></small></div>
+      <div class="field"><label for="newPassword">New password</label><div class="password-wrap"><input id="newPassword" type="password" autocomplete="new-password" required aria-describedby="h-newPassword e-newPassword"><button type="button" class="reveal" data-reveal="newPassword" aria-label="Show password">Show</button></div><small class="help" id="h-newPassword">At least 10 characters. A short phrase is easiest to remember.</small><small class="error" id="e-newPassword"></small></div>
+      <div class="field"><label for="confirmPassword">Confirm new password</label><input id="confirmPassword" type="password" autocomplete="new-password" required><small class="error" id="e-confirmPassword"></small></div>
+      <button class="button button-primary auth-submit" type="submit">Save password</button>
+      <button class="text-link auth-cancel" type="button" id="passwordCancel">Cancel</button>
+    </form>
+  </main>
+
+  <div class="app-shell" id="appShell" hidden>
+    <aside class="sidebar" id="sidebar">
+      <div class="brand"><img class="brand-mark" src="./images/dlcf-logo.png" alt="DLCF logo" width="40" height="40"><div class="brand-copy"><strong>DLCF <span>Ondo Region</span></strong><small>Member management</small></div><button class="icon-button mobile-close" id="closeMenu" aria-label="Close menu">×</button></div>
+      <div class="region-label">REGION</div><div class="region-switcher"><span class="region-dot"></span>Ondo Region</div>
+      <div class="nav-label">WORKSPACE</div>
+      <nav class="main-nav" aria-label="Main navigation">
+        <button class="nav-item nav-active" data-view="Overview"><span class="nav-icon">▦</span><span>Overview</span></button>
+        <button class="nav-item" data-view="Members"><span class="nav-icon">♙</span><span>Members</span><span class="nav-count" id="navCount">0</span></button>
+        <button class="nav-item" data-view="Fellowship centres"><span class="nav-icon">▤</span><span>Fellowship centres</span></button>
+        <button class="nav-item" data-view="Reports"><span class="nav-icon">▧</span><span>Reports</span></button>
+        <button class="nav-item admin-only" data-view="Users"><span class="nav-icon">⚇</span><span>Users</span></button>
+        <button class="nav-item admin-only" data-view="Audit log"><span class="nav-icon">◷</span><span>Audit log</span></button>
+      </nav>
+      <div class="nav-label centres-label" id="centresLabel">YOUR CENTRES</div>
+      <div id="sidebarCentres"></div>
+      <div class="sidebar-bottom"><div class="help-card"><div class="help-icon">ⓘ</div><strong>Need a hand?</strong><p>Get help using the fellowship directory.</p><button id="helpButton">Visit help centre ›</button></div>
+        <div class="profile-switch"><div class="avatar avatar-admin" id="profileInitials"></div><div class="profile-info"><strong id="profileName"></strong><small id="profileScope"></small></div></div>
+        <div class="account-actions"><button class="text-link" id="changePassword">Change password</button><button class="text-link" id="signOut">Sign out</button></div>
+      </div>
+    </aside>
+    <button class="mobile-scrim" id="mobileScrim" aria-label="Close navigation"></button>
+    <main class="main-area">
+      <header class="topbar"><div class="topbar-left"><button class="icon-button mobile-menu" id="openMenu" aria-label="Open menu">☰</button><div class="breadcrumbs"><span>Ondo Region</span><b>›</b><strong id="crumb">Overview</strong></div></div><div class="topbar-actions"><span class="user-chip" id="userChip"></span><button class="icon-button notification-button" id="notifyButton" aria-label="Notifications">♧</button><div class="avatar avatar-admin top-avatar" id="topInitials"></div></div></header>
+      <div class="content-wrap">
+        <div class="page-heading"><div><div class="eyebrow"><span class="eyebrow-line"></span><span id="todayLabel"></span></div><h1 id="pageTitle">Good morning</h1><p class="page-subtitle" id="subtitle"></p></div><div class="heading-actions"><button class="button button-secondary" id="exportButton">⇩ Print page</button><button class="button button-primary" id="addButton">＋ Add a member</button></div></div>
+        <div class="scope-banner" id="scopeBanner" hidden><span>◈</span><span id="scopeText"></span></div>
+
+        <div id="overviewView">
+          <section class="stats-grid"><div class="stat-card"><div class="stat-top"><span>Total members</span><div class="stat-icon green">♙</div></div><div class="stat-value" id="totalMembers">–</div><div class="stat-foot"><span id="totalScope">Across your fellowship</span></div></div><div class="stat-card"><div class="stat-top"><span>Students</span><div class="stat-icon blue">▣</div></div><div class="stat-value" id="studentCount">–</div><div class="stat-foot"><span id="studentShare">0% of all members</span></div></div><div class="stat-card"><div class="stat-top"><span>Staff members</span><div class="stat-icon amber">▤</div></div><div class="stat-value" id="staffCount">–</div><div class="stat-foot"><span>Across all fellowships</span></div></div><div class="stat-card"><div class="stat-top"><span>Fellowship centres</span><div class="stat-icon violet">⌂</div></div><div class="stat-value" id="centreCount">–</div><div class="stat-foot"><span>Institutions covered</span><button class="text-link" data-view="Fellowship centres">View centres ›</button></div></div></section>
+          <section class="insights-grid"><div class="panel growth-panel"><div class="panel-header"><div><div class="panel-kicker">MEMBERSHIP</div><h2>Growing together</h2></div></div><div class="chart-summary"><strong id="chartTotal">0</strong><small>members, last 6 months</small></div><div class="empty-state chart-empty" id="chartEmpty"><strong>No membership history yet</strong><span>Growth will appear here once members are added.</span></div><div class="chart-area" id="chartArea" hidden><div class="chart-ylabels" id="chartY"></div><div class="chart-gridlines"><i></i><i></i><i></i><i></i></div><svg class="growth-chart" id="growthChart" viewBox="0 0 680 170" preserveAspectRatio="none" role="img" aria-label="Cumulative membership over the last six months"></svg><div class="chart-xlabels" id="chartX"></div></div></div>
+            <div class="panel centres-panel"><div class="panel-header"><div><div class="panel-kicker">YOUR NETWORK</div><h2>Fellowship centres</h2></div><button class="icon-button subtle-icon" data-view="Fellowship centres" aria-label="Open fellowship centres">•••</button></div><div class="centre-list" id="centreList"></div><button class="text-link" data-view="Fellowship centres">View all centres ›</button></div></section>
+          <section class="panel members-panel"><div class="members-heading"><div><div class="panel-kicker">DIRECTORY</div><h2>Recently added members</h2></div><button class="text-link" data-view="Members">View directory ›</button></div><div class="table-wrap"><table class="member-table"><thead><tr><th>NAME</th><th>MEMBER TYPE</th><th>FELLOWSHIP CENTRE</th><th>PROGRAMME / ROLE</th><th>STATUS</th><th></th></tr></thead><tbody id="memberRows"></tbody></table><div class="empty-state" id="emptyState" hidden><strong>No members yet</strong><span>Members you add will appear here.</span></div></div></section>
+          <footer class="footer-note">◈ Every view, change and export is recorded in the audit log.</footer>
+        </div>
+
+        <section class="panel directory-panel" id="directoryView" hidden><div class="directory-toolbar"><div><div class="panel-kicker">MEMBER DIRECTORY</div><h2 id="directoryTitle">All members</h2><p>Browse students and staff across your authorised fellowship centres.</p></div><button class="button button-primary" id="directoryAdd">＋ Add a member</button></div><div class="filters-row"><label class="search-field">⌕ <input id="searchBox" placeholder="Search by name, course, matric no. or phone" aria-label="Search members"><kbd>⌘ K</kbd></label><label class="filter-select admin-only" id="institutionFilter">⌖ <select id="schoolFilter" aria-label="Filter by centre"><option value="">All centres</option></select><span class="chevron">⌄</span></label><button class="filter-select" id="resetFilter">☷ Reset filters</button></div><div class="table-wrap"><table class="member-table"><thead><tr><th>NAME</th><th>MEMBER TYPE</th><th>FELLOWSHIP CENTRE</th><th>PROGRAMME / ROLE</th><th>STATUS</th><th></th></tr></thead><tbody id="allRows"></tbody></table><div class="empty-state" id="emptyDirectory" hidden><strong id="emptyDirectoryTitle">No members match this search</strong><span id="emptyDirectoryText">Try another name, programme or centre.</span></div></div><div class="table-footer"><span>Showing <strong id="resultShown">0</strong> of <strong id="resultCount">0</strong> members</span><button class="text-link" id="membersMore" hidden>Show more ›</button></div></section>
+
+        <section class="centre-cards" id="centresView" hidden></section>
+
+        <section class="panel reports-panel" id="reportsView" hidden><div class="reports-icon">▧</div><h2>Reports</h2><p>Download membership data for your authorised centres. Every download is recorded in the audit log.</p><div class="report-row"><div class="report-file">▤</div><span><strong>Member directory</strong><small>Every member in your access scope, all fields</small></span><a class="button button-secondary" id="downloadSummary" href="/api/reports/members.csv" download>⇩ Download CSV</a></div><div class="report-row"><div class="report-file">▦</div><span><strong>Monthly membership overview</strong><small>New members per centre, last 12 months</small></span><a class="button button-secondary" id="downloadMonthly" href="/api/reports/monthly.csv" download>⇩ Download CSV</a></div></section>
+
+        <section class="panel directory-panel" id="usersView" hidden>
+          <div class="directory-toolbar"><div><div class="panel-kicker">ACCESS</div><h2>User accounts</h2><p>Who can sign in, and which centre each campus pastor can see.</p></div><button class="button button-primary" id="addUser">＋ Add a user</button></div>
+          <div class="table-wrap"><table class="member-table users-table"><thead><tr><th>NAME</th><th>ROLE</th><th>CENTRE</th><th>STATUS</th><th>LAST SIGN-IN</th><th></th></tr></thead><tbody id="userRows"></tbody></table></div>
+        </section>
+
+        <section class="panel audit-panel" id="auditView" hidden>
+          <div class="directory-toolbar"><div><div class="panel-kicker">AUDIT TRAIL</div><h2>Activity log</h2><p>Every action taken on this system, newest first. Entries can’t be changed or deleted.</p></div><div class="audit-actions"><button class="button button-secondary" id="auditVerify">✓ Verify integrity</button><a class="button button-secondary" id="auditCsv" href="/api/audit/export.csv" download>⇩ CSV</a><a class="button button-secondary" id="auditJson" href="/api/audit/export.json" download>⇩ JSON</a></div></div>
+          <div id="auditIntegrity" role="status"></div>
+          <div class="filters-row audit-filters"><label class="search-field">⌕ <input id="auditSearch" placeholder="Search activity, member or person" aria-label="Search audit log"></label><label class="filter-select">▦ <select id="auditCategory" aria-label="Filter by category"><option value="">All categories</option></select></label><label class="filter-select">♙ <select id="auditActor" aria-label="Filter by person"><option value="">Everyone</option></select></label><label class="filter-select date-filter">From <input type="date" id="auditFrom" aria-label="From date"></label><label class="filter-select date-filter">To <input type="date" id="auditTo" aria-label="To date"></label><button class="filter-select" id="auditReset">☷ Reset</button></div>
+          <div class="table-wrap"><table class="member-table audit-table"><thead><tr><th>#</th><th>WHEN</th><th>WHO</th><th>ACTIVITY</th><th></th></tr></thead><tbody id="auditRows"></tbody></table><div class="empty-state" id="auditEmpty" hidden><strong>No matching activity</strong><span>Try a different search or date range.</span></div></div>
+          <div class="table-footer"><span>Showing <strong id="auditShown">0</strong> of <strong id="auditTotal">0</strong> entries</span><button class="text-link" id="auditMore" hidden>Show more ›</button></div>
+        </section>
+      </div>
+    </main>
+  </div>
+
+  <!-- Member profile -->
+  <div class="modal-backdrop" id="modalBackdrop" hidden><section class="profile-modal" role="dialog" aria-modal="true" aria-labelledby="profileTitle"><div class="modal-top"><span class="modal-label">MEMBER PROFILE</span><button class="icon-button" id="closeModal" aria-label="Close profile">×</button></div><div class="profile-hero"><div class="avatar avatar-large" id="profileAvatar"></div><div><h2 id="profileTitle">Member name</h2><p id="profileRole"></p><span class="status-badge status-active" id="profileStatus"><i></i>Active</span></div></div><div id="profileBody"></div><div id="profileActivity"></div><div class="modal-foot"><span id="profileUpdated"></span><div class="modal-foot-actions"><button class="button button-danger" id="removeMember">Remove</button><button class="button button-primary" id="editMember">Edit details</button></div></div></section></div>
+
+  <!-- Add / edit member -->
+  <div class="modal-backdrop" id="formBackdrop" hidden><form class="profile-modal wizard" id="memberForm" role="dialog" aria-modal="true" aria-labelledby="formTitle" novalidate>
+    <header class="wizard-head"><div class="modal-top"><div><span class="modal-label" id="formKicker">NEW MEMBER</span><h2 class="wizard-title" id="formTitle">Add a member</h2></div><button type="button" class="icon-button" data-close aria-label="Close form">×</button></div><ol class="stepper" id="stepper"></ol></header>
+    <div class="wizard-body" id="wizardBody"></div>
+    <footer class="wizard-foot"><span class="wizard-progress" id="stepCount"></span><div class="wizard-actions"><button type="button" class="button button-secondary" id="wizBack">Back</button><button type="button" class="button button-secondary" id="wizSaveNow" hidden>Save changes</button><button type="button" class="button button-secondary" id="wizAnother" hidden>Save &amp; add another</button><button type="submit" class="button button-primary" id="wizNext">Continue</button></div></footer>
+  </form></div>
+
+  <!-- Add / edit user -->
+  <div class="modal-backdrop" id="userBackdrop" hidden><form class="profile-modal user-form" id="userForm" role="dialog" aria-modal="true" aria-labelledby="userFormTitle" novalidate>
+    <div class="modal-top"><div><span class="modal-label" id="userFormKicker">NEW USER</span><h2 class="wizard-title" id="userFormTitle">Add a user</h2></div><button type="button" class="icon-button" data-close aria-label="Close">×</button></div>
+    <div class="form-grid user-grid">
+      <div class="field field-wide" data-field="fullName"><label for="u-fullName">Full name <span class="req">*</span></label><input id="u-fullName" name="fullName" autocomplete="off"><small class="error" id="ue-fullName"></small></div>
+      <div class="field field-wide" data-field="email"><label for="u-email">Email address <span class="req">*</span></label><input id="u-email" name="email" type="email" autocomplete="off"><small class="help">They’ll use this to sign in.</small><small class="error" id="ue-email"></small></div>
+      <div class="field field-wide" data-field="role"><span class="field-label">Role <span class="req">*</span></span><div class="choice-group" role="radiogroup"><label class="choice"><input type="radio" name="role" value="campus_pastor"><span>Campus pastor</span></label><label class="choice"><input type="radio" name="role" value="regional_admin"><span>Regional admin</span></label></div><small class="help" id="roleHelp"></small><small class="error" id="ue-role"></small></div>
+      <div class="field field-wide" data-field="centreId"><label for="u-centreId">Centre <span class="req">*</span></label><select id="u-centreId" name="centreId"></select><small class="error" id="ue-centreId"></small></div>
+    </div>
+    <p class="form-error" id="userFormError" hidden></p>
+    <div class="form-actions"><button type="button" class="button button-secondary" data-close>Cancel</button><button type="submit" class="button button-primary" id="userSave">Create account</button></div>
+  </form></div>
+
+  <!-- One-time password -->
+  <div class="modal-backdrop" id="tempBackdrop" hidden><section class="profile-modal temp-modal" role="dialog" aria-modal="true" aria-labelledby="tempTitle">
+    <div class="modal-top"><span class="modal-label">ONE-TIME PASSWORD</span><button type="button" class="icon-button" data-close aria-label="Close">×</button></div>
+    <h2 class="wizard-title" id="tempTitle"></h2>
+    <p class="temp-intro">Give this temporary password to <strong id="tempName"></strong> in person or by phone. It won’t be shown again. They’ll choose their own password when they first sign in.</p>
+    <div class="temp-box"><code id="tempPassword"></code><button class="button button-secondary" id="copyTemp" type="button">Copy</button></div>
+    <div class="form-actions"><button type="button" class="button button-primary" data-close>Done</button></div>
+  </section></div>
+
+  <!-- Help -->
+  <div class="modal-backdrop" id="helpBackdrop" hidden><section class="profile-modal" role="dialog" aria-modal="true" aria-labelledby="helpTitle"><div class="modal-top"><span class="modal-label" id="helpTitle">HELP CENTRE</span><button type="button" class="icon-button" data-close aria-label="Close help">×</button></div>
+    <div class="profile-section help-list"><h3>Adding members</h3><p>Use <strong>Add a member</strong>. The form has four short steps (personal, campus, fellowship, family) and a final review. Fields marked <strong>*</strong> are required.</p><h3>Finding members</h3><p>Open <strong>Members</strong>, then search by name, course, matric number or phone. Press <kbd>⌘ K</kbd> (or Ctrl K) to jump to search.</p><h3>Viewing, editing and removing</h3><p>Click a member to open their profile. Use <strong>Edit details</strong> to update the record or <strong>Remove</strong> to delete it. If someone else saved changes while you were editing, you’ll be asked to reload first.</p><h3>Reports</h3><p>On <strong>Reports</strong>, download the member directory or the monthly overview as CSV files.</p><h3>Accounts and access</h3><p>Campus pastors see only their own centre. The regional admin manages accounts on <strong>Users</strong> and can reset forgotten passwords. You’re signed out after 30 minutes without activity.</p><h3>Audit log</h3><p>Every sign-in, view, change, export and denied access attempt is recorded. The regional admin can review it on <strong>Audit log</strong> and use <strong>Verify integrity</strong> to confirm nothing has been altered.</p></div>
+  </section></div>
+
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+  <script src="./member-schema.js" defer></script>
+  <script src="./audit-actions.js" defer></script>
+  <script src="./app.js" defer></script>
+</body>
+</html>
