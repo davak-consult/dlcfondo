@@ -3,15 +3,27 @@ const { FIELDS, clean, groupLabel } = require("../public/member-schema.js");
 const { query } = require("./db");
 
 const toColumn = (key) => key.replace(/[A-Z]/g, (c) => `_${c.toLowerCase()}`);
-const STORED = FIELDS.filter((f) => f.key !== "institution");
+const STORED = FIELDS.filter((f) => f.key !== "institution" && f.key !== "centre");
 const DATE_FIELDS = new Set(STORED.filter((f) => f.type === "date").map((f) => f.key));
 
+// Fellowship centres with their institution, cached until a centre is added, renamed or removed.
 let centreCache = null;
 async function centres() {
-  centreCache ||= (await query("SELECT id, code, name, institution FROM centres ORDER BY id")).rows;
+  centreCache ||= (await query(
+    `SELECT c.id, c.code, c.name, i.id AS institutionId, i.name AS institution, i.short_name AS institutionShort, i.code AS institutionCode
+       FROM centres c JOIN institutions i ON i.id = c.institution_id ORDER BY i.id, c.name`)).rows;
   return centreCache;
 }
-const institutions = async () => (await centres()).map((c) => c.institution);
+const clearCentreCache = () => { centreCache = null; };
+const institutionList = async () => (await query("SELECT id, code, name, short_name AS shortName FROM institutions ORDER BY id")).rows;
+const institutions = async () => [...new Set((await centres()).map((c) => c.institution))];
+
+// What the member form may offer: institutions, and the centres under each (by institution name).
+function formOptions(list) {
+  const centresByInstitution = {};
+  list.forEach((c) => { (centresByInstitution[c.institution] ||= []).push(c.name); });
+  return { institutions: Object.keys(centresByInstitution), centres: centresByInstitution };
+}
 
 function fromRow(row, centreList) {
   const centre = centreList.find((c) => c.id === row.centre_id);
@@ -54,4 +66,4 @@ function recentMonths(n) {
 // Loads a member row by id (used after INSERT/UPDATE, since MySQL has no RETURNING).
 const memberRow = async (client, id) => (await client.query("SELECT * FROM members WHERE id = $1", [id])).rows[0];
 
-module.exports = { centres, institutions, fromRow, toColumns, diff, snapshot, target, clean, toColumn, STORED, recentMonths, memberRow };
+module.exports = { centres, clearCentreCache, institutionList, formOptions, institutions, fromRow, toColumns, diff, snapshot, target, clean, toColumn, STORED, recentMonths, memberRow };

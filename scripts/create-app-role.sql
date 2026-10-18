@@ -7,7 +7,8 @@
 -- dlcf_app can only read and add audit entries, and has no TRIGGER, DROP or ALTER privilege,
 -- so it can't remove the append-only triggers or the truncate guard.
 CREATE USER 'dlcf_app'@'%' IDENTIFIED BY 'change-me-to-a-long-random-password';
-GRANT SELECT ON dlcf.centres TO 'dlcf_app'@'%';
+GRANT SELECT ON dlcf.institutions TO 'dlcf_app'@'%';
+GRANT SELECT, INSERT, UPDATE, DELETE ON dlcf.centres TO 'dlcf_app'@'%';
 GRANT SELECT, INSERT, UPDATE ON dlcf.users TO 'dlcf_app'@'%';
 GRANT SELECT, INSERT, UPDATE ON dlcf.members TO 'dlcf_app'@'%';
 GRANT SELECT, INSERT, UPDATE, DELETE ON dlcf.sessions TO 'dlcf_app'@'%';

@@ -78,12 +78,12 @@
 
         <section class="panel directory-panel" id="directoryView" hidden><div class="directory-toolbar"><div><div class="panel-kicker">MEMBER DIRECTORY</div><h2 id="directoryTitle">All members</h2><p>Browse students and staff across your authorised fellowship centres.</p></div><button class="button button-primary" id="directoryAdd">＋ Add a member</button></div><div class="filters-row"><label class="search-field">⌕ <input id="searchBox" placeholder="Search by name, course, matric no. or phone" aria-label="Search members"><kbd>⌘ K</kbd></label><label class="filter-select admin-only" id="institutionFilter">⌖ <select id="schoolFilter" aria-label="Filter by centre"><option value="">All centres</option></select><span class="chevron">⌄</span></label><button class="filter-select" id="resetFilter">☷ Reset filters</button></div><div class="table-wrap"><table class="member-table"><thead><tr><th>NAME</th><th>MEMBER TYPE</th><th>FELLOWSHIP CENTRE</th><th>PROGRAMME / ROLE</th><th>STATUS</th><th></th></tr></thead><tbody id="allRows"></tbody></table><div class="empty-state" id="emptyDirectory" hidden><strong id="emptyDirectoryTitle">No members match this search</strong><span id="emptyDirectoryText">Try another name, programme or centre.</span></div></div><div class="table-footer"><span>Showing <strong id="resultShown">0</strong> of <strong id="resultCount">0</strong> members</span><button class="text-link" id="membersMore" hidden>Show more ›</button></div></section>
 
-        <section class="centre-cards" id="centresView" hidden></section>
+        <section class="institution-groups" id="centresView" hidden></section>
 
         <section class="panel reports-panel" id="reportsView" hidden><div class="reports-icon">▧</div><h2>Reports</h2><p>Download membership data for your authorised centres. Every download is recorded in the audit log.</p><div class="report-row"><div class="report-file">▤</div><span><strong>Member directory</strong><small>Every member in your access scope, all fields</small></span><a class="button button-secondary" id="downloadSummary" href="/api/reports/members.csv" download>⇩ Download CSV</a></div><div class="report-row"><div class="report-file">▦</div><span><strong>Monthly membership overview</strong><small>New members per centre, last 12 months</small></span><a class="button button-secondary" id="downloadMonthly" href="/api/reports/monthly.csv" download>⇩ Download CSV</a></div></section>
 
         <section class="panel directory-panel" id="usersView" hidden>
-          <div class="directory-toolbar"><div><div class="panel-kicker">ACCESS</div><h2>User accounts</h2><p>Who can sign in, and which centre each campus pastor can see.</p></div><button class="button button-primary" id="addUser">＋ Add a user</button></div>
+          <div class="directory-toolbar"><div><div class="panel-kicker">ACCESS</div><h2>User accounts</h2><p>Who can sign in, and which fellowship centre each campus pastor can see.</p></div><button class="button button-primary" id="addUser">＋ Add a user</button></div>
           <div class="table-wrap"><table class="member-table users-table"><thead><tr><th>NAME</th><th>ROLE</th><th>CENTRE</th><th>STATUS</th><th>LAST SIGN-IN</th><th></th></tr></thead><tbody id="userRows"></tbody></table></div>
         </section>
 
@@ -115,10 +115,21 @@
       <div class="field field-wide" data-field="fullName"><label for="u-fullName">Full name <span class="req">*</span></label><input id="u-fullName" name="fullName" autocomplete="off"><small class="error" id="ue-fullName"></small></div>
       <div class="field field-wide" data-field="email"><label for="u-email">Email address <span class="req">*</span></label><input id="u-email" name="email" type="email" autocomplete="off"><small class="help">They’ll use this to sign in.</small><small class="error" id="ue-email"></small></div>
       <div class="field field-wide" data-field="role"><span class="field-label">Role <span class="req">*</span></span><div class="choice-group" role="radiogroup"><label class="choice"><input type="radio" name="role" value="campus_pastor"><span>Campus pastor</span></label><label class="choice"><input type="radio" name="role" value="regional_admin"><span>Regional admin</span></label></div><small class="help" id="roleHelp"></small><small class="error" id="ue-role"></small></div>
-      <div class="field field-wide" data-field="centreId"><label for="u-centreId">Centre <span class="req">*</span></label><select id="u-centreId" name="centreId"></select><small class="error" id="ue-centreId"></small></div>
+      <div class="field field-wide" data-field="centreId"><label for="u-centreId">Fellowship centre <span class="req">*</span></label><select id="u-centreId" name="centreId"></select><small class="error" id="ue-centreId"></small></div>
     </div>
     <p class="form-error" id="userFormError" hidden></p>
     <div class="form-actions"><button type="button" class="button button-secondary" data-close>Cancel</button><button type="submit" class="button button-primary" id="userSave">Create account</button></div>
+  </form></div>
+
+  <!-- Add or rename a fellowship centre (regional admin) -->
+  <div class="modal-backdrop" id="centreBackdrop" hidden><form class="profile-modal user-form" id="centreForm" role="dialog" aria-modal="true" aria-labelledby="centreFormTitle" novalidate>
+    <div class="modal-top"><div><span class="modal-label" id="centreFormKicker">NEW FELLOWSHIP CENTRE</span><h2 class="wizard-title" id="centreFormTitle">Add a fellowship centre</h2></div><button type="button" class="icon-button" data-close aria-label="Close">×</button></div>
+    <div class="form-grid user-grid">
+      <div class="field field-wide" data-field="institutionId"><label for="c-institutionId">Institution <span class="req">*</span></label><select id="c-institutionId" name="institutionId"></select><small class="error" id="ce-institutionId"></small></div>
+      <div class="field field-wide" data-field="name"><label for="c-name">Centre name <span class="req">*</span></label><input id="c-name" name="name" maxlength="120" autocomplete="off"><small class="help">For example, FUTA Road Centre. Each name can be used once per institution.</small><small class="error" id="ce-name"></small></div>
+    </div>
+    <p class="form-error" id="centreFormError" hidden></p>
+    <div class="form-actions"><button type="button" class="button button-secondary" data-close>Cancel</button><button type="submit" class="button button-primary" id="centreSave">Add centre</button></div>
   </form></div>
 
   <!-- One-time password -->

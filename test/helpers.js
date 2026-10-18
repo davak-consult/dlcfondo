@@ -54,7 +54,7 @@ async function signedIn(email, password = PASSWORD) {
 
 const validMember = (overrides = {}) => ({
   firstName: "Adaeze", surname: "Okafor", gender: "Female", phone: "08031234567",
-  role: "Student", institution: "University of Medical Sciences", department: "Nursing", programme: "B.NSc Nursing", level: "300 level",
+  role: "Student", institution: "University of Medical Sciences", centre: "UNIMED Centre", department: "Nursing", programme: "B.NSc Nursing", level: "300 level",
   status: "New member", dateJoined: "2026-09-01", kinName: "Mr Okafor", kinRelationship: "Father", kinPhone: "08051112233", ...overrides
 });
 

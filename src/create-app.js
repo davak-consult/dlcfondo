@@ -47,6 +47,7 @@ function createApp() {
   api.use("/reports", auth.requireAuth, require("./routes/reports"));
   api.use("/events", auth.requireAuth, require("./routes/events"));
   api.use("/users", auth.requireAuth, auth.requireAdmin, require("./routes/users"));
+  api.use("/centres", auth.requireAuth, auth.requireAdmin, require("./routes/centres"));
   api.use("/audit", auth.requireAuth, auth.requireAdmin, require("./routes/audit"));
   api.use((req, res) => res.status(404).json({ error: "Not found." }));
   app.use("/api", api);

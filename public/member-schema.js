@@ -40,6 +40,7 @@
     {id: "campus", title: "Campus", heading: "Campus details", intro: "Where this member studies or works.", fields: [
       {key: "role", label: "Member type", type: "choice", options: ["Student", "Staff"], required: true, wide: true},
       {key: "institution", label: "Institution", type: "select", options: "institutions", required: true, wide: true},
+      {key: "centre", label: "Fellowship centre", type: "select", options: "centres", required: true, wide: true, placeholder: "Select a fellowship centre", help: "The centre under this institution that the member attends"},
       {key: "faculty", label: "Faculty / school", when: student},
       {key: "department", label: "Department", required: true, when: student},
       {key: "programme", label: "Course of study", required: true, when: student, help: "e.g. B.Sc. Nursing Science"},
@@ -79,7 +80,12 @@
   ];
   const FIELDS = STEPS.flatMap((step) => step.fields.filter((f) => f.key));
   const fieldShown = (f, data) => !f.when || Object.entries(f.when).every(([key, value]) => data[key] === value);
-  const optionsOf = (f, institutions = []) => f.options === "institutions" ? institutions : f.options || [];
+  // ctx lists what this user may choose: {institutions: [...], centres: {institutionName: [centreName, ...]}}.
+  function optionsOf(f, ctx = {}, data = {}) {
+    if (f.options === "institutions") return ctx.institutions || [];
+    if (f.options === "centres") return (ctx.centres || {})[data.institution] || [];
+    return f.options || [];
+  }
   function groupLabel(f) {
     const step = STEPS.find((s) => s.fields.includes(f));
     let group = ""; for (const item of step.fields) { if (item.group) group = item.group; if (item === f) break; }
@@ -89,18 +95,18 @@
     if (f.type === "choice" || f.type === "select") return "Please select an option.";
     return f.label.toLowerCase() === "full name" ? "Please enter their full name." : `Please enter the ${f.label.toLowerCase()}.`;
   }
-  function fieldError(f, data, institutions) {
+  function fieldError(f, data, ctx) {
     const value = data[f.key];
     if (!fieldShown(f, data) || f.type === "checkbox") return "";
     if (f.required && !value) return requiredMessage(f);
     if (!value) return "";
     if (value.length > (f.maxLength || 200)) return `Keep this under ${f.maxLength || 200} characters.`;
-    if ((f.type === "choice" || f.type === "select") && !optionsOf(f, institutions).includes(value)) return "Please select one of the listed options.";
+    if ((f.type === "choice" || f.type === "select") && !optionsOf(f, ctx, data).includes(value)) return f.options === "centres" ? "Choose a fellowship centre under this institution." : "Please select one of the listed options.";
     return f.validate ? f.validate(value) : "";
   }
   // Turns untrusted input into a clean record: known fields only, trimmed strings,
   // hidden conditional fields blanked, phones formatted. Returns {data, errors}.
-  function clean(input, institutions) {
+  function clean(input, ctx) {
     const data = {};
     FIELDS.forEach((f) => {
       const raw = input && input[f.key];
@@ -108,7 +114,7 @@
     });
     FIELDS.forEach((f) => { if (!fieldShown(f, data)) data[f.key] = f.type === "checkbox" ? false : ""; if (f.type === "tel") data[f.key] = formatPhone(data[f.key]); });
     const errors = {};
-    FIELDS.forEach((f) => { const message = fieldError(f, data, institutions); if (message) errors[f.key] = message; });
+    FIELDS.forEach((f) => { const message = fieldError(f, data, ctx); if (message) errors[f.key] = message; });
     return {data, errors};
   }
   return {STEPS, FIELDS, STATES, LEVELS, UNITS, STATUSES, todayISO, phoneDigits, validPhone, formatPhone, fieldShown, optionsOf, groupLabel, fieldError, clean};

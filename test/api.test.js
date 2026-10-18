@@ -144,7 +144,7 @@ describe("campus pastor scope", () => {
   let otherCentreMember;
   before(async () => {
     otherCentreMember = (await admin.post("/api/members").send(h.validMember({ phone: "08030000001" }))).body.id;
-    await admin.post("/api/members").send(h.validMember({ institution: "Adeyemi Federal University of Education", phone: "08030000002", firstName: "Tola" }));
+    await admin.post("/api/members").send(h.validMember({ institution: "Adeyemi Federal University of Education", centre: "Adeyemi Centre", phone: "08030000002", firstName: "Tola" }));
   });
   test("only sees their own centre", async () => {
     const res = await adeyemiPastor.get("/api/members?centreId=2");
@@ -201,6 +201,76 @@ describe("user management", () => {
     assert.equal(res.status, 200);
     const c = await h.signedIn("wesley@dlcf.test", res.body.temporaryPassword);
     assert.equal((await c.get("/api/auth/me")).body.user.mustChangePassword, true);
+  });
+});
+
+describe("fellowship centres", () => {
+  let roadCentre, roadPastor;
+  test("admin adds a centre under an institution; duplicates are refused", async () => {
+    const res = await admin.post("/api/centres").send({ institutionId: 1, name: "  FUTA  Road Centre " });
+    assert.equal(res.status, 201);
+    roadCentre = res.body.centre;
+    assert.equal(roadCentre.name, "FUTA Road Centre");
+    assert.equal(roadCentre.institution, "Adeyemi Federal University of Education");
+    assert.equal((await h.lastAudit()).action, "centre.create");
+    const dupe = await admin.post("/api/centres").send({ institutionId: 1, name: "futa road centre" });
+    assert.equal(dupe.status, 400);
+    assert.ok(dupe.body.errors.name);
+    assert.equal((await admin.post("/api/centres").send({ institutionId: 99, name: "Nowhere" })).body.errors.institutionId, "Choose an institution.");
+  });
+  test("the same name is allowed under a different institution", async () => {
+    assert.equal((await admin.post("/api/centres").send({ institutionId: 2, name: "FUTA Road Centre" })).status, 201);
+  });
+  test("lists institutions with their centres and counts", async () => {
+    const res = await admin.get("/api/centres");
+    assert.deepEqual(res.body.institutions.map((i) => i.shortName), ["Adeyemi", "UNIMED", "Wesley"]);
+    const adeyemi = res.body.centres.filter((c) => c.institutionId === 1).map((c) => c.name);
+    assert.deepEqual(adeyemi, ["Adeyemi Centre", "FUTA Road Centre"]);
+    assert.ok(res.body.centres.find((c) => c.name === "Adeyemi Centre").pastors >= 1);
+  });
+  test("members go to the chosen centre, which must belong to the institution", async () => {
+    const wrong = await admin.post("/api/members").send(h.validMember({ institution: "Wesley University", centre: "FUTA Road Centre", phone: "08030000010" }));
+    assert.equal(wrong.status, 400);
+    assert.match(wrong.body.errors.centre, /under this institution/);
+    const res = await admin.post("/api/members").send(h.validMember({ institution: "Adeyemi Federal University of Education", centre: "FUTA Road Centre", phone: "08030000011", firstName: "Bisi" }));
+    assert.equal(res.status, 201);
+    assert.equal(res.body.centreId, roadCentre.id);
+    assert.equal(res.body.centre, "FUTA Road Centre");
+  });
+  test("a pastor of the new centre sees only that centre, not the rest of the institution", async () => {
+    await h.createUser({ email: "road@dlcf.test", name: "Road Pastor", role: "campus_pastor", centreId: roadCentre.id });
+    roadPastor = await h.signedIn("road@dlcf.test");
+    const mine = await roadPastor.get("/api/members");
+    assert.ok(mine.body.items.length >= 1);
+    assert.ok(mine.body.items.every((m) => m.centre === "FUTA Road Centre"));
+    assert.ok((await adeyemiPastor.get("/api/members")).body.items.every((m) => m.centre === "Adeyemi Centre"));
+    const other = await roadPastor.post("/api/members").send(h.validMember({ institution: "Adeyemi Federal University of Education", centre: "Adeyemi Centre", phone: "08030000012" }));
+    assert.equal(other.status, 400);
+    assert.equal((await h.lastAudit()).action, "access.denied");
+  });
+  test("moving a member to another centre is recorded as a change", async () => {
+    const { body: [member] } = { body: (await admin.get("/api/members?q=Bisi")).body.items };
+    const res = await admin.put(`/api/members/${member.id}`).send({ ...member, centre: "Adeyemi Centre" });
+    assert.equal(res.status, 200);
+    assert.equal(res.body.centre, "Adeyemi Centre");
+    assert.deepEqual((await h.lastAudit()).details.changes.map((c) => [c.field, c.from, c.to]), [["centre", "FUTA Road Centre", "Adeyemi Centre"]]);
+  });
+  test("renaming is audited; removing is refused while anyone is assigned", async () => {
+    assert.equal((await admin.patch(`/api/centres/${roadCentre.id}`).send({ name: "FUTA Road" })).body.centre.name, "FUTA Road");
+    assert.equal((await h.lastAudit()).action, "centre.update");
+    const blocked = await admin.delete(`/api/centres/${roadCentre.id}`);
+    assert.equal(blocked.status, 409);
+    assert.match(blocked.body.error, /has 1 user account/);
+  });
+  test("an unused centre can be removed", async () => {
+    const { body: { centre } } = await admin.post("/api/centres").send({ institutionId: 3, name: "Temporary" });
+    assert.equal((await admin.delete(`/api/centres/${centre.id}`)).status, 204);
+    assert.equal((await h.lastAudit()).action, "centre.delete");
+    assert.ok(!(await admin.get("/api/centres")).body.centres.some((c) => c.id === centre.id));
+  });
+  test("pastors can't manage centres", async () => {
+    assert.equal((await roadPastor.get("/api/centres")).status, 403);
+    assert.equal((await adeyemiPastor.post("/api/centres").send({ institutionId: 1, name: "Mine" })).status, 403);
   });
 });
 

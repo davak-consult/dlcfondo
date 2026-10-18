@@ -14,8 +14,21 @@ const formatTime = (iso) => new Date(iso).toLocaleString("en-GB", {day: "numeric
 const state = {user: null, centres: [], stats: null, view: "Overview", centreFilter: "", membersShown: PAGE, auditShown: PAGE, openMember: null, idleMinutes: 30, lastActivity: Date.now()};
 const isAdmin = () => state.user?.role === "regional_admin";
 const allowedCentres = () => isAdmin() ? state.centres : state.centres.filter((c) => c.id === state.user.centreId);
-const allowedInstitutions = () => allowedCentres().map((c) => c.institution);
-const dotFor = (centre) => CENTRE_DOTS[centre?.code] || "green";
+// What the member form may offer this user: institutions, and the centres under each.
+function formCtx() {
+  const ctx = {institutions: [], centres: {}};
+  allowedCentres().forEach((c) => { if (!ctx.centres[c.institution]) { ctx.institutions.push(c.institution); ctx.centres[c.institution] = []; } ctx.centres[c.institution].push(c.name); });
+  return ctx;
+}
+const dotFor = (centre) => CENTRE_DOTS[centre?.institutionCode] || "green";
+// <option>s for every centre, grouped under its institution.
+function centreOptions(placeholder) {
+  const groups = [];
+  state.centres.forEach((c) => { let g = groups.find((x) => x.name === c.institution); if (!g) groups.push(g = {name: c.institution, centres: []}); g.centres.push(c); });
+  return `<option value="">${esc(placeholder)}</option>${groups.map((g) => `<optgroup label="${esc(g.name)}">${g.centres.map((c) => `<option value="${c.id}">${esc(c.name)}</option>`).join("")}</optgroup>`).join("")}`;
+}
+const plural = (n, word) => `${fmt(n)} ${word}${Number(n) === 1 ? "" : "s"}`;
+const centreLabel = (c) => c ? `${c.name} · ${c.institutionShort}` : "";
 const toneFor = (id) => tones[Number(id) % tones.length];
 
 // ---- API ---------------------------------------------------------------------
@@ -97,7 +110,7 @@ function startApp(user, centres, session) {
   $$(".admin-only").forEach((node) => { node.hidden = !isAdmin(); });
   $("#scopeBanner").hidden = isAdmin();
   $("#scopeText").innerHTML = `<strong>${esc(user.centreName)}</strong> · You can see and add members of this centre only.`;
-  $("#schoolFilter").innerHTML = `<option value="">All centres</option>${state.centres.map((c) => `<option value="${c.id}">${esc(c.name)}</option>`).join("")}`;
+  $("#schoolFilter").innerHTML = centreOptions("All centres");
   $("#centresLabel").textContent = isAdmin() ? "YOUR CENTRES" : "YOUR CENTRE";
   // Nothing from a previous user's session (searches, filters, open records) carries over.
   ["#searchBox", "#auditSearch", "#auditCategory", "#auditActor", "#auditFrom", "#auditTo"].forEach((s) => { $(s).value = ""; });
@@ -131,7 +144,7 @@ async function loadStats() {
   $("#totalScope").textContent = isAdmin() ? "Across your fellowship" : `At ${state.user.centreName}`;
   $("#sidebarCentres").innerHTML = stats.centres.map((c) => `<button class="centre-link" data-centre="${c.id}"><i class="centre-dot ${dotFor(c)}"></i><span>${esc(c.name)}</span><small>${fmt(c.total)}</small></button>`).join("");
   $("#centreList").innerHTML = stats.centres.map((c) => `<button class="centre-row" data-centre="${c.id}"><i class="centre-dot ${dotFor(c)}"></i><span class="centre-row-copy"><strong>${esc(c.name)}</strong><small>${esc(c.institution)}</small><span class="mini-bar"><i class="${dotFor(c)}" style="width:${pct(c.total, stats.total)}%"></i></span></span><span class="centre-total"><strong>${fmt(c.total)}</strong><small>${pct(c.total, stats.total)}%</small></span><b class="row-chevron">›</b></button>`).join("");
-  $("#centresView").innerHTML = stats.centres.map((c, i) => `<button class="centre-detail-card" data-centre="${c.id}"><div class="centre-card-icon tone-${i % 3}">▤</div><span class="centre-card-count">${fmt(c.total)} members</span><h2>${esc(c.name)}</h2><p>${esc(c.institution)} · ${fmt(c.total - c.staff)} students, ${fmt(c.staff)} staff</p><div class="centre-card-bottom"><span><i class="centre-dot ${dotFor(c)}"></i>View members</span><b>›</b></div></button>`).join("");
+  renderCentresView();
   $$("[data-centre]").forEach((button) => { button.onclick = () => openCentre(Number(button.dataset.centre)); });
   renderChart(stats.monthly);
 }
@@ -203,7 +216,7 @@ const showView = guard(async (view, {logFilter = false} = {}) => {
   if (changed) { window.scrollTo({top: 0}); if (view !== "Audit log") track("nav.view", {view}); }
   if (view === "Overview") await Promise.all([loadStats(), loadRecent()]);
   if (view === "Members") await Promise.all([loadMembers({logFilter}), state.stats ? null : loadStats()]);
-  if (view === "Fellowship centres") await loadStats();
+  if (view === "Fellowship centres") await Promise.all([loadStats(), isAdmin() ? loadCentres() : null]);
   if (view === "Users") await loadUsers();
   if (view === "Audit log") { state.auditShown = PAGE; await loadAuditMeta(); await loadAudit({open: changed}); }
 });
@@ -263,7 +276,7 @@ function fieldHtml(f) {
   const common = `id="${id}" name="${f.key}" aria-describedby="${describedBy}"${f.required ? ` aria-required="true"` : ""}${f.autocomplete ? ` autocomplete="${f.autocomplete}"` : ""}`;
   let label = `<label for="${id}">${esc(f.label)}${req}</label>`;
   let control;
-  const options = S.optionsOf(f, allowedInstitutions());
+  const options = S.optionsOf(f, formCtx());
   if (f.type === "choice") {
     label = `<span class="field-label" id="l-${f.key}">${esc(f.label)}${req}</span>`;
     control = `<div class="choice-group" role="radiogroup" aria-labelledby="l-${f.key}" aria-describedby="${describedBy}">${options.map((o) => `<label class="choice"><input type="radio" name="${f.key}" value="${esc(o)}"><span>${esc(o)}</span></label>`).join("")}</div>`;
@@ -289,11 +302,20 @@ function readForm() {
 }
 function writeForm(data) {
   const form = $("#memberForm");
-  FIELDS.forEach((f) => { const el = form.elements[f.key]; if (!el) return; if (f.type === "checkbox") el.checked = !!data[f.key]; else el.value = data[f.key] ?? ""; });
+  FIELDS.forEach((f) => { const el = form.elements[f.key]; if (!el) return; if (f.key === "centre") refreshCentreOptions(data.centre); else if (f.type === "checkbox") el.checked = !!data[f.key]; else el.value = data[f.key] ?? ""; });
+}
+// Offers the fellowship centres under the chosen institution, keeping the selection when it still applies.
+function refreshCentreOptions(selected) {
+  const form = $("#memberForm"), select = form.elements.centre;
+  const names = formCtx().centres[form.elements.institution.value] || [];
+  const keep = selected ?? select.value;
+  select.innerHTML = `<option value="">${names.length ? "Select a fellowship centre" : "Choose the institution first"}</option>${names.map((n) => `<option>${esc(n)}</option>`).join("")}`;
+  select.value = names.includes(keep) ? keep : names.length === 1 ? names[0] : "";
 }
 function applyConditions() {
   const data = readForm();
   FIELDS.forEach((f) => { if (f.when) $(`[data-field="${f.key}"]`).hidden = !S.fieldShown(f, data); });
+  refreshCentreOptions();
   ["kinName", "kinPhone"].forEach((key) => { $(`#f-${key}`).readOnly = data.kinSameAsParent; });
   $("#f-kinRelationship").disabled = data.kinSameAsParent;
 }
@@ -304,7 +326,7 @@ function syncKin() {
   form.elements.kinPhone.value = form.elements.parentPhone.value;
   form.elements.kinRelationship.value = form.elements.parentRelationship.value;
 }
-const fieldError = (f, data) => S.fieldError(f, data, allowedInstitutions());
+const fieldError = (f, data) => S.fieldError(f, data, formCtx());
 function showFieldError(key, message) {
   const wrap = $(`[data-field="${key}"]`); if (!wrap) return;
   wrap.classList.toggle("has-error", !!message);
@@ -372,8 +394,8 @@ function openForm(member = null) {
   Object.assign(wiz, {step: 0, reached: 0, mode: member ? "edit" : "add", member, dirty: false, saving: false});
   $("#formKicker").textContent = member ? "EDIT MEMBER" : "NEW MEMBER";
   $("#formTitle").textContent = member ? member.name : "Add a member";
-  const preset = state.centres.find((c) => String(c.id) === String(state.centreFilter))?.institution || allowedInstitutions()[0];
-  writeForm(member || {role: "Student", institution: preset, status: "New member", dateJoined: S.todayISO()});
+  const preset = allowedCentres().find((c) => String(c.id) === String(state.centreFilter)) || (allowedCentres().length === 1 ? allowedCentres()[0] : null);
+  writeForm(member || {role: "Student", institution: preset?.institution || formCtx().institutions[0], centre: preset?.name, status: "New member", dateJoined: S.todayISO()});
   applyConditions();
   closeModals(true);
   $("#formBackdrop").hidden = false;
@@ -405,7 +427,7 @@ const saveFromForm = guard(async ({another = false} = {}) => {
   wiz.saving = false; wiz.dirty = false;
   await refreshData();
   if (another) {
-    const keep = {role: data.role, institution: data.institution};
+    const keep = {role: data.role, institution: data.institution, centre: data.centre};
     openForm(); writeForm({...keep, status: "New member", dateJoined: S.todayISO()}); applyConditions();
     toast(`${saved.name} saved. Ready for the next member.`);
     return;
@@ -426,7 +448,7 @@ function onFormInput(event) {
   if (target.id === "consent") { if (target.checked) { $("#consentWrap").classList.remove("has-error"); $("#e-consent").textContent = ""; } return; }
   wiz.dirty = true;
   if (target.name === "kinSameAsParent" || target.name?.startsWith("parent")) syncKin();
-  if (target.name === "role" || target.name === "kinSameAsParent") applyConditions();
+  if (target.name === "role" || target.name === "kinSameAsParent" || target.name === "institution") applyConditions();
   const f = FIELDS.find((item) => item.key === target.name);
   if (f && target.closest(".field")?.classList.contains("has-error")) showFieldError(f.key, fieldError(f, readForm()));
   if (target.name === "kinSameAsParent" && target.checked) ["kinName", "kinPhone", "kinRelationship"].forEach((key) => showFieldError(key, ""));
@@ -446,6 +468,75 @@ function onStepClick(event) {
   goStep(index);
 }
 
+// ---- Fellowship centres ---------------------------------------------------------------------
+let centreAdmin = null; // {institutions, centres with member/pastor counts}, loaded for the regional admin
+let editingCentre = null;
+async function loadCentres() {
+  centreAdmin = await api("/api/centres");
+  state.centres = centreAdmin.centres.map(({members, pastors, ...c}) => c);
+  $("#schoolFilter").innerHTML = centreOptions("All centres"); $("#schoolFilter").value = state.centreFilter;
+  renderCentresView();
+}
+function renderCentresView() {
+  const stats = state.stats; if (!stats) return;
+  const statFor = (id) => stats.centres.find((c) => c.id === id) || {total: 0, staff: 0};
+  const institutions = isAdmin() && centreAdmin ? centreAdmin.institutions
+    : [...new Map(allowedCentres().map((c) => [c.institutionId, {id: c.institutionId, name: c.institution, shortName: c.institutionShort, code: c.institutionCode}])).values()];
+  $("#centresView").innerHTML = institutions.map((inst) => {
+    const list = allowedCentres().filter((c) => c.institutionId === inst.id);
+    const total = list.reduce((sum, c) => sum + statFor(c.id).total, 0);
+    const cards = list.map((c, i) => {
+      const s = statFor(c.id), pastors = centreAdmin?.centres.find((x) => x.id === c.id)?.pastors;
+      return `<div class="centre-detail-card"><div class="centre-card-icon tone-${i % 3}">▤</div><span class="centre-card-count">${plural(s.total, "member")}</span><h2>${esc(c.name)}</h2><p>${plural(s.total - s.staff, "student")}, ${fmt(s.staff)} staff${pastors !== undefined ? ` · ${pastors ? plural(pastors, "pastor") : "no pastor yet"}` : ""}</p><div class="centre-card-bottom"><button class="text-link" data-centre="${c.id}"><i class="centre-dot ${dotFor(c)}"></i>View members ›</button>${isAdmin() ? `<span class="centre-card-actions"><button class="text-link" data-centre-action="rename" data-id="${c.id}">Rename</button><button class="text-link danger-link" data-centre-action="remove" data-id="${c.id}">Remove</button></span>` : ""}</div></div>`;
+    }).join("");
+    return `<section class="institution-group"><header class="institution-head"><div><div class="panel-kicker">${esc(inst.shortName)}</div><h2>${esc(inst.name)}</h2><p>${plural(list.length, "fellowship centre")} · ${plural(total, "member")}</p></div>${isAdmin() ? `<button class="button button-secondary" data-add-centre="${inst.id}">＋ Add centre</button>` : ""}</header><div class="centre-cards">${cards || `<p class="institution-empty">No fellowship centres yet.</p>`}</div></section>`;
+  }).join("");
+  $$("#centresView [data-centre]").forEach((button) => { button.onclick = () => openCentre(Number(button.dataset.centre)); });
+}
+function openCentreForm({institutionId, centre = null}) {
+  editingCentre = centre;
+  const form = $("#centreForm"); form.reset();
+  $("#centreFormKicker").textContent = centre ? "RENAME FELLOWSHIP CENTRE" : "NEW FELLOWSHIP CENTRE";
+  $("#centreFormTitle").textContent = centre ? centre.name : "Add a fellowship centre";
+  $("#centreSave").textContent = centre ? "Save name" : "Add centre";
+  $("#c-institutionId").innerHTML = (centreAdmin?.institutions || []).map((i) => `<option value="${i.id}">${esc(i.name)}</option>`).join("");
+  form.elements.institutionId.value = centre?.institutionId || institutionId;
+  form.elements.institutionId.disabled = !!centre;
+  form.elements.name.value = centre?.name || "";
+  ["institutionId", "name"].forEach((k) => setError(`#ce-${k}`, ""));
+  $("#centreFormError").hidden = true;
+  closeModals(true);
+  $("#centreBackdrop").hidden = false;
+  form.elements.name.focus();
+}
+const saveCentre = guard(async (event) => {
+  event.preventDefault();
+  const form = $("#centreForm");
+  const body = {name: form.elements.name.value.trim(), institutionId: Number(form.elements.institutionId.value)};
+  ["institutionId", "name"].forEach((k) => setError(`#ce-${k}`, ""));
+  try {
+    const {centre} = editingCentre ? await api(`/api/centres/${editingCentre.id}`, {method: "PATCH", body: {name: body.name}}) : await api("/api/centres", {method: "POST", body});
+    closeModals(true);
+    await Promise.all([loadCentres(), loadStats()]);
+    toast(editingCentre ? `Renamed to ${centre.name}.` : `${centre.name} was added. You can now assign a campus pastor to it under Users.`);
+  } catch (error) {
+    if (error.data?.errors) Object.entries(error.data.errors).forEach(([k, v]) => setError(`#ce-${k}`, v));
+    $("#centreFormError").textContent = error.message; $("#centreFormError").hidden = false;
+  }
+});
+const centreAction = guard(async (event) => {
+  const add = event.target.closest("[data-add-centre]");
+  if (add) return openCentreForm({institutionId: Number(add.dataset.addCentre)});
+  const button = event.target.closest("[data-centre-action]"); if (!button) return;
+  const centre = state.centres.find((c) => c.id === Number(button.dataset.id));
+  if (button.dataset.centreAction === "rename") return openCentreForm({centre});
+  if (!confirm(`Remove ${centre.name} from ${centre.institution}? This is only possible if no members or users have ever been assigned to it.`)) return;
+  try { await api(`/api/centres/${centre.id}`, {method: "DELETE"}); }
+  catch (error) { if (error.status === 409) return toast(error.message); throw error; }
+  await Promise.all([loadCentres(), loadStats()]);
+  toast(`${centre.name} was removed.`);
+});
+
 // ---- Users (regional admin) ---------------------------------------------------------------
 const ROLE_LABELS = {regional_admin: "Regional admin", campus_pastor: "Campus pastor"};
 let users = [];
@@ -456,7 +547,7 @@ async function loadUsers() {
     const locked = u.lockedUntil && new Date(u.lockedUntil) > new Date();
     const status = !u.isActive ? ["Deactivated", "status-inactive"] : locked ? ["Locked", "status-new"] : u.mustChangePassword ? ["Awaiting first sign-in", "status-new"] : ["Active", "status-active"];
     const self = u.id === state.user.id;
-    return `<tr data-user="${u.id}"><td><div class="member-cell"><div class="avatar ${toneFor(u.email.length)}">${esc(u.fullName.split(/\s+/).map((p) => p[0]).slice(0, 2).join("").toUpperCase())}</div><span><strong>${esc(u.fullName)}${self ? " (you)" : ""}</strong><small>${esc(u.email)}</small></span></div></td><td>${ROLE_LABELS[u.role]}</td><td>${esc(state.centres.find((c) => c.id === u.centreId)?.name || "All centres")}</td><td><span class="status-badge ${status[1]}"><i></i>${status[0]}</span></td><td>${u.lastLoginAt ? esc(formatTime(u.lastLoginAt)) : "Never"}</td><td class="user-actions"><button class="text-link" data-user-action="edit">Edit</button><button class="text-link" data-user-action="reset">Reset password</button>${locked ? `<button class="text-link" data-user-action="unlock">Unlock</button>` : ""}${self ? "" : `<button class="text-link ${u.isActive ? "danger-link" : ""}" data-user-action="${u.isActive ? "deactivate" : "activate"}">${u.isActive ? "Deactivate" : "Reactivate"}</button>`}</td></tr>`;
+    return `<tr data-user="${u.id}"><td><div class="member-cell"><div class="avatar ${toneFor(u.email.length)}">${esc(u.fullName.split(/\s+/).map((p) => p[0]).slice(0, 2).join("").toUpperCase())}</div><span><strong>${esc(u.fullName)}${self ? " (you)" : ""}</strong><small>${esc(u.email)}</small></span></div></td><td>${ROLE_LABELS[u.role]}</td><td>${esc(centreLabel(state.centres.find((c) => c.id === u.centreId)) || "All centres")}</td><td><span class="status-badge ${status[1]}"><i></i>${status[0]}</span></td><td>${u.lastLoginAt ? esc(formatTime(u.lastLoginAt)) : "Never"}</td><td class="user-actions"><button class="text-link" data-user-action="edit">Edit</button><button class="text-link" data-user-action="reset">Reset password</button>${locked ? `<button class="text-link" data-user-action="unlock">Unlock</button>` : ""}${self ? "" : `<button class="text-link ${u.isActive ? "danger-link" : ""}" data-user-action="${u.isActive ? "deactivate" : "activate"}">${u.isActive ? "Deactivate" : "Reactivate"}</button>`}</td></tr>`;
   }).join("");
 }
 function openUserForm(user = null) {
@@ -465,7 +556,7 @@ function openUserForm(user = null) {
   $("#userFormKicker").textContent = user ? "EDIT USER" : "NEW USER";
   $("#userFormTitle").textContent = user ? user.fullName : "Add a user";
   $("#userSave").textContent = user ? "Save changes" : "Create account";
-  $("#u-centreId").innerHTML = `<option value="">Select a centre</option>${state.centres.map((c) => `<option value="${c.id}">${esc(c.name)}</option>`).join("")}`;
+  $("#u-centreId").innerHTML = centreOptions("Select a fellowship centre");
   form.elements.fullName.value = user?.fullName || "";
   form.elements.email.value = user?.email || "";
   form.elements.email.disabled = !!user;
@@ -481,7 +572,7 @@ function openUserForm(user = null) {
 function updateUserRole() {
   const role = $("#userForm").elements.role.value;
   $('[data-field="centreId"]').hidden = role !== "campus_pastor";
-  $("#roleHelp").textContent = role === "campus_pastor" ? "Can view, add and edit members of one centre." : "Full access to every centre, user accounts and the audit log.";
+  $("#roleHelp").textContent = role === "campus_pastor" ? "Can view, add and edit members of one fellowship centre." : "Full access to every centre, user accounts and the audit log.";
 }
 const saveUser = guard(async (event) => {
   event.preventDefault();
@@ -662,6 +753,8 @@ $("#notifyButton").addEventListener("click", () => { track("notify.open"); toast
 $("#openMenu").addEventListener("click", () => { $("#sidebar").classList.add("sidebar-open"); $("#mobileScrim").classList.add("scrim-visible"); });
 $("#closeMenu").addEventListener("click", closeMenu); $("#mobileScrim").addEventListener("click", closeMenu);
 $("#addUser").addEventListener("click", () => openUserForm());
+$("#centresView").addEventListener("click", centreAction);
+$("#centreForm").addEventListener("submit", saveCentre);
 $("#userForm").addEventListener("submit", saveUser);
 $("#userForm").addEventListener("change", (event) => { if (event.target.name === "role") updateUserRole(); });
 $("#userRows").addEventListener("click", userAction);

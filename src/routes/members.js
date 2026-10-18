@@ -1,7 +1,7 @@
 const express = require("express");
 const { query, tx } = require("../db");
 const audit = require("../audit");
-const { centres, institutions, fromRow, toColumns, diff, snapshot, target, clean, recentMonths, memberRow } = require("../members");
+const { centres, formOptions, fromRow, toColumns, diff, snapshot, target, clean, recentMonths, memberRow } = require("../members");
 const { phoneDigits } = require("../../public/member-schema.js");
 
 const router = express.Router();
@@ -115,13 +115,14 @@ router.get("/:id/history", async (req, res) => {
 async function cleanFor(req, res, body) {
   const list = await centres();
   const allowed = isAdmin(req) ? list : list.filter((c) => c.id === req.user.centreId);
-  const { data, errors } = clean(body, allowed.map((c) => c.institution));
+  const { data, errors } = clean(body, formOptions(allowed));
   if (Object.keys(errors).length) {
-    if (errors.institution && !isAdmin(req) && (await institutions()).includes(body?.institution)) await denied(req, "campus pastors can only add members to their own centre", "members");
+    const elsewhere = list.some((c) => c.institution === body?.institution && c.name === body?.centre);
+    if ((errors.institution || errors.centre) && !isAdmin(req) && elsewhere) await denied(req, "campus pastors can only add members to their own centre", "members");
     res.status(400).json({ error: "Some details need attention.", errors });
     return null;
   }
-  return { data, centre: list.find((c) => c.institution === data.institution) };
+  return { data, centre: list.find((c) => c.institution === data.institution && c.name === data.centre) };
 }
 
 router.post("/", async (req, res) => {
