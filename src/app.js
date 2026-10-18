@@ -2,6 +2,7 @@
 const config = require("./config");
 const { pool } = require("./db");
 const { migrate } = require("./migrate");
+const { bootstrapAdmin } = require("./admin");
 const { createApp } = require("./create-app");
 
 // Migrations run after the server is listening, retrying every 30 seconds until they succeed,
@@ -9,8 +10,9 @@ const { createApp } = require("./create-app");
 async function migrateWithRetry() {
   try {
     await migrate(pool);
+    await bootstrapAdmin();
   } catch (error) {
-    console.error(JSON.stringify({ level: "error", msg: "migrations failed, retrying in 30s", code: error.code || null, error: error.message }));
+    console.error(JSON.stringify({ level: "error", msg: "database setup failed, retrying in 30s", code: error.code || null, error: error.message }));
     setTimeout(migrateWithRetry, 30000).unref();
   }
 }
