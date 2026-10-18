@@ -97,6 +97,7 @@ Health check endpoint: `GET /healthz`.
 
 ## Day-to-day operations
 
+- **Online registration:** share `https://your-domain/register` (or use **Copy registration link** on the **Registrations** page). People choose their institution and fellowship centre and fill in their own details. Their registration waits under **Registrations** until that centre's pastor or the regional admin approves it; only then does it appear in the directory, stats and reports. Rejected registrations are hidden and kept in the audit log. Submissions are limited to 10 per hour per network (`REGISTRATIONS_PER_HOUR`).
 - **Fellowship centres:** each institution (Adeyemi, UNIMED, Wesley) can have any number of fellowship centres. The regional admin adds and renames them on the **Fellowship centres** page, then assigns each campus pastor to one centre under **Users**. A pastor sees only the members of their own centre. A centre can only be removed if no member or user has ever been assigned to it.
 - **Forgotten password:** the regional admin opens **Users** and clicks **Reset password**, then gives the one-time password to the person directly.
 - **Someone leaves:** **Deactivate** their account. They're signed out immediately and their history stays in the audit log.

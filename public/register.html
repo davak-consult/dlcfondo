@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#3e4095"><meta name="description" content="Register as a member of Deeper Life Campus Fellowship, Ondo Region.">
+  <title>Join DLCF Ondo Region</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="icon" href="./images/dlcf-logo.png" type="image/png">
+  <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="./styles.css">
+</head>
+<body class="register-body">
+  <main class="auth-screen register-screen">
+    <form class="auth-card register-card" id="registerForm" novalidate>
+      <header class="register-head">
+        <img src="./images/dlcf-logo.png" alt="DLCF logo" width="64" height="64">
+        <h1>Join DLCF Ondo Region</h1>
+        <p class="auth-sub">Register as a member of your fellowship centre. Your centre’s pastor will review your details before you’re added to the directory.</p>
+        <p class="req-note">Fields marked <span class="req">*</span> are required.</p>
+      </header>
+      <div id="registerBody"><p class="auth-sub">Loading…</p></div>
+      <!-- Leave empty: a hidden field that only automated spam fills in. -->
+      <div class="register-trap" aria-hidden="true"><label for="website">Website</label><input id="website" name="website" tabindex="-1" autocomplete="off"></div>
+      <div class="consent" id="consentWrap"><label class="check"><input type="checkbox" id="consent" aria-describedby="e-consent"><span>I agree to DLCF Ondo Region keeping these details for fellowship and pastoral care. Only my centre’s pastor and the regional admin can see them.</span></label><small class="error" id="e-consent"></small></div>
+      <p class="form-error" id="registerError" role="alert" hidden></p>
+      <button class="button button-primary auth-submit" type="submit" id="registerSubmit">Submit registration</button>
+      <p class="auth-foot">Already a pastor or admin? <a href="/">Sign in</a></p>
+    </form>
+    <section class="auth-card register-card register-done" id="registerDone" hidden>
+      <img src="./images/dlcf-logo.png" alt="DLCF logo" width="64" height="64">
+      <h1>Thank you!</h1>
+      <p class="auth-sub" id="doneText"></p>
+      <button class="button button-secondary" type="button" id="registerAnother">Register someone else</button>
+    </section>
+  </main>
+  <script src="./member-schema.js"></script>
+  <script src="./register.js"></script>
+</body>
+</html>

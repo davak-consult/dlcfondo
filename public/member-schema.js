@@ -54,7 +54,7 @@
       {key: "staffId", label: "Staff ID", when: staff, maxLength: 40}
     ]},
     {id: "fellowship", title: "Fellowship", heading: "Fellowship details", intro: "Their walk with the fellowship so far.", fields: [
-      {key: "status", label: "Membership status", type: "select", options: STATUSES, required: true},
+      {key: "status", label: "Membership status", type: "select", options: STATUSES, required: true, staffOnly: true},
       {key: "dateJoined", label: "Date joined the fellowship", type: "date", required: true, validate: notFuture, max: todayISO},
       {key: "bornAgain", label: "Born again?", type: "choice", options: ["Yes", "No", "Not sure"]},
       {key: "waterBaptism", label: "Water baptism", type: "choice", options: ["Yes", "No"]},
@@ -62,7 +62,7 @@
       {key: "unit", label: "Workers’ unit", type: "select", options: UNITS, placeholder: "Select a unit"},
       {key: "leadership", label: "Leadership role", help: "e.g. Centre coordinator, unit leader"},
       {key: "homeChurch", label: "Home church / branch", help: "Deeper Life branch attended at home"},
-      {key: "notes", label: "Pastoral notes", type: "textarea", wide: true, maxLength: 2000, help: "Prayer points or follow-up notes. Visible to pastors who can open this record."}
+      {key: "notes", label: "Pastoral notes", type: "textarea", staffOnly: true, wide: true, maxLength: 2000, help: "Prayer points or follow-up notes. Visible to pastors who can open this record."}
     ]},
     {id: "family", title: "Family", heading: "Family & emergency contacts", intro: "Who to contact about this member, especially in an emergency.", fields: [
       {group: "Parent / guardian", help: "Optional for staff members."},

@@ -24,6 +24,7 @@
       <p class="form-error" id="loginError" role="alert" hidden></p>
       <button class="button button-primary auth-submit" type="submit" id="loginSubmit">Sign in</button>
       <p class="auth-foot">Forgotten your password? Ask the regional admin to reset it.</p>
+      <p class="auth-foot">Want to become a member? <a href="/register">Register here</a></p>
     </form>
   </main>
 
@@ -49,6 +50,7 @@
       <nav class="main-nav" aria-label="Main navigation">
         <button class="nav-item nav-active" data-view="Overview"><span class="nav-icon">▦</span><span>Overview</span></button>
         <button class="nav-item" data-view="Members"><span class="nav-icon">♙</span><span>Members</span><span class="nav-count" id="navCount">0</span></button>
+        <button class="nav-item" data-view="Registrations"><span class="nav-icon">✎</span><span>Registrations</span><span class="nav-count nav-count-alert" id="pendingCount" hidden>0</span></button>
         <button class="nav-item" data-view="Fellowship centres"><span class="nav-icon">▤</span><span>Fellowship centres</span></button>
         <button class="nav-item" data-view="Reports"><span class="nav-icon">▧</span><span>Reports</span></button>
         <button class="nav-item admin-only" data-view="Users"><span class="nav-icon">⚇</span><span>Users</span></button>
@@ -77,6 +79,11 @@
         </div>
 
         <section class="panel directory-panel" id="directoryView" hidden><div class="directory-toolbar"><div><div class="panel-kicker">MEMBER DIRECTORY</div><h2 id="directoryTitle">All members</h2><p>Browse students and staff across your authorised fellowship centres.</p></div><button class="button button-primary" id="directoryAdd">＋ Add a member</button></div><div class="filters-row"><label class="search-field">⌕ <input id="searchBox" placeholder="Search by name, course, matric no. or phone" aria-label="Search members"><kbd>⌘ K</kbd></label><label class="filter-select admin-only" id="institutionFilter">⌖ <select id="schoolFilter" aria-label="Filter by centre"><option value="">All centres</option></select><span class="chevron">⌄</span></label><button class="filter-select" id="resetFilter">☷ Reset filters</button></div><div class="table-wrap"><table class="member-table"><thead><tr><th>NAME</th><th>MEMBER TYPE</th><th>FELLOWSHIP CENTRE</th><th>PROGRAMME / ROLE</th><th>STATUS</th><th></th></tr></thead><tbody id="allRows"></tbody></table><div class="empty-state" id="emptyDirectory" hidden><strong id="emptyDirectoryTitle">No members match this search</strong><span id="emptyDirectoryText">Try another name, programme or centre.</span></div></div><div class="table-footer"><span>Showing <strong id="resultShown">0</strong> of <strong id="resultCount">0</strong> members</span><button class="text-link" id="membersMore" hidden>Show more ›</button></div></section>
+
+        <section class="panel directory-panel" id="registrationsView" hidden>
+          <div class="directory-toolbar"><div><div class="panel-kicker">APPROVALS</div><h2>New registrations</h2><p>People who registered on the public page. Approve them to add them to the directory, or reject them.</p></div><button class="button button-secondary" id="copyRegisterLink">Copy registration link</button></div>
+          <div class="table-wrap"><table class="member-table"><thead><tr><th>NAME</th><th>FELLOWSHIP CENTRE</th><th>PHONE</th><th>REGISTERED</th><th></th></tr></thead><tbody id="registrationRows"></tbody></table><div class="empty-state" id="registrationsEmpty" hidden><strong>No registrations waiting</strong><span>Share the registration link so members can sign themselves up. New registrations appear here for approval.</span></div></div>
+        </section>
 
         <section class="institution-groups" id="centresView" hidden></section>
 

@@ -43,6 +43,7 @@ function createApp() {
   api.use(auth.loadSession);
   api.use(requestLogger);
   api.use("/auth", require("./routes/auth"));
+  api.use("/public", require("./routes/public"));
   api.use("/members", auth.requireAuth, require("./routes/members"));
   api.use("/reports", auth.requireAuth, require("./routes/reports"));
   api.use("/events", auth.requireAuth, require("./routes/events"));
@@ -52,6 +53,7 @@ function createApp() {
   api.use((req, res) => res.status(404).json({ error: "Not found." }));
   app.use("/api", api);
 
+  app.get("/register", (req, res) => res.set("Cache-Control", "no-cache").sendFile(path.join(__dirname, "..", "public", "register.html")));
   app.use(express.static(path.join(__dirname, "..", "public"), {
     setHeaders: (res, file) => res.set("Cache-Control", file.endsWith(".html") ? "no-cache" : "public, max-age=3600")
   }));

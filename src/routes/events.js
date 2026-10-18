@@ -5,7 +5,7 @@ const audit = require("../audit");
 const { CLIENT_EVENTS } = require("../../public/audit-actions.js");
 
 const router = express.Router();
-const VIEWS = ["Overview", "Members", "Fellowship centres", "Reports", "Audit log", "Users"];
+const VIEWS = ["Overview", "Members", "Registrations", "Fellowship centres", "Reports", "Audit log", "Users"];
 router.use(rateLimit({ windowMs: 60000, limit: 120, standardHeaders: "draft-7", legacyHeaders: false }));
 
 router.post("/", async (req, res) => {

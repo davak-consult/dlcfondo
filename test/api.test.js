@@ -274,6 +274,71 @@ describe("fellowship centres", () => {
   });
 });
 
+describe("public registration and approval", () => {
+  const visitor = () => h.client();
+  const registration = (overrides = {}) => ({ ...h.validMember({ institution: "Adeyemi Federal University of Education", centre: "Adeyemi Centre", firstName: "Femi", surname: "Ojo", phone: "08070000001" }), consent: true, ...overrides });
+  let pendingId;
+  test("anyone can list institutions and centres", async () => {
+    const res = await visitor().get("/api/public/centres");
+    assert.equal(res.status, 200);
+    assert.ok(res.body.centres["Adeyemi Federal University of Education"].includes("Adeyemi Centre"));
+  });
+  test("the registration page is served without signing in", async () => {
+    const res = await h.request(h.app).get("/register");
+    assert.equal(res.status, 200);
+    assert.match(res.text, /register\.js/);
+  });
+  test("a registration is saved as pending, ignoring staff-only fields", async () => {
+    const res = await visitor().post("/api/public/register").send(registration({ status: "Active", notes: "let me in" }));
+    assert.equal(res.status, 201);
+    assert.equal(res.body.centre, "Adeyemi Centre");
+    const entry = await h.lastAudit();
+    assert.equal(entry.action, "member.register");
+    assert.equal(entry.user_id, null);
+    pendingId = Number(entry.target_id);
+    const { rows: [row] } = await h.pool.query("SELECT approval, status, notes, created_by FROM members WHERE id = $1", [pendingId]);
+    assert.deepEqual([row.approval, row.status, row.notes, row.created_by], ["pending", "New member", "", null]);
+  });
+  test("consent, validation and the cross-site header are required", async () => {
+    assert.equal((await visitor().post("/api/public/register").send(registration({ consent: false }))).status, 400);
+    assert.ok((await visitor().post("/api/public/register").send(registration({ centre: "UNIMED Centre" }))).body.errors.centre);
+    assert.equal((await h.request(h.app).post("/api/public/register").send(registration())).status, 403);
+  });
+  test("bots that fill the hidden field get a reply but nothing is saved", async () => {
+    const before = (await h.pool.query("SELECT count(*) AS n FROM members")).rows[0].n;
+    assert.equal((await visitor().post("/api/public/register").send(registration({ website: "http://spam" }))).status, 201);
+    assert.equal((await h.pool.query("SELECT count(*) AS n FROM members")).rows[0].n, before);
+  });
+  test("pending members stay out of the directory and stats until approved", async () => {
+    assert.ok(!(await admin.get("/api/members?q=Femi")).body.items.length);
+    assert.ok((await adeyemiPastor.get("/api/members/stats")).body.pending >= 1);
+  });
+  test("only that centre's pastor (or the admin) sees and decides on it", async () => {
+    assert.ok((await adeyemiPastor.get("/api/members/pending")).body.items.some((m) => m.id === pendingId));
+    await h.createUser({ email: "wesley2@dlcf.test", name: "Wesley Pastor", role: "campus_pastor", centreId: 3 });
+    const wesley = await h.signedIn("wesley2@dlcf.test");
+    assert.ok(!(await wesley.get("/api/members/pending")).body.items.some((m) => m.id === pendingId));
+    assert.equal((await wesley.post(`/api/members/${pendingId}/approve`)).status, 404);
+  });
+  test("approving lists the member; it can't be decided twice", async () => {
+    const res = await adeyemiPastor.post(`/api/members/${pendingId}/approve`);
+    assert.equal(res.status, 200);
+    assert.equal((await h.lastAudit()).action, "member.approve");
+    assert.ok((await adeyemiPastor.get("/api/members?q=Femi")).body.items.some((m) => m.id === pendingId));
+    assert.equal((await adeyemiPastor.post(`/api/members/${pendingId}/reject`)).status, 409);
+  });
+  test("rejecting hides the registration and keeps a snapshot in the audit log", async () => {
+    await visitor().post("/api/public/register").send(registration({ firstName: "Spam", phone: "08070000002" }));
+    const id = Number((await h.lastAudit()).target_id);
+    assert.equal((await admin.post(`/api/members/${id}/reject`).send({ reason: "Not a student here" })).status, 200);
+    const entry = await h.lastAudit();
+    assert.equal(entry.action, "member.reject");
+    assert.equal(entry.details.reason, "Not a student here");
+    assert.equal(entry.details.snapshot.firstName, "Spam");
+    assert.equal((await admin.get(`/api/members/${id}`)).status, 404);
+  });
+});
+
 describe("audit log", () => {
   test("only whitelisted browser events are accepted", async () => {
     assert.equal((await admin.post("/api/events").send({ action: "nav.view", view: "Members" })).status, 204);

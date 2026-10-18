@@ -36,7 +36,7 @@ async function loadMember(req, res, client = null, lock = false) {
 router.get("/", async (req, res) => {
   const params = [];
   const centreId = req.query.centreId ? Number(req.query.centreId) : null;
-  const where = [`deleted_at IS NULL`, scopeClause(req, params, centreId)];
+  const where = [`deleted_at IS NULL`, `approval = 'approved'`, scopeClause(req, params, centreId)];
   const q = String(req.query.q || "").trim().slice(0, 100);
   if (q) {
     params.push(`%${q.replace(/[\\%_]/g, (c) => `\\${c}`)}%`);
@@ -59,7 +59,9 @@ router.get("/", async (req, res) => {
 
 router.get("/stats", async (req, res) => {
   const params = [];
-  const where = `deleted_at IS NULL AND ${scopeClause(req, params)}`;
+  const scope = scopeClause(req, params);
+  const where = `deleted_at IS NULL AND approval = 'approved' AND ${scope}`;
+  const { rows: [{ pending }] } = await query(`SELECT count(*) AS pending FROM members WHERE deleted_at IS NULL AND approval = 'pending' AND ${scope}`, params);
   const { rows: byCentre } = await query(`SELECT centre_id, count(*) AS total, CAST(SUM(role = 'Staff') AS SIGNED) AS staff FROM members WHERE ${where} GROUP BY centre_id`, params);
   // Running total of members at the end of each of the last six months.
   const { rows: joined } = await query(`SELECT DATE_FORMAT(date_joined, '%Y-%m') AS month, count(*) AS n FROM members WHERE ${where} GROUP BY month`, params);
@@ -67,7 +69,7 @@ router.get("/stats", async (req, res) => {
   const list = (await centres()).filter((c) => isAdmin(req) || c.id === req.user.centreId);
   const centreStats = list.map((c) => { const row = byCentre.find((r) => r.centre_id === c.id) || { total: 0, staff: 0 }; return { ...c, total: row.total, staff: row.staff }; });
   const total = centreStats.reduce((sum, c) => sum + c.total, 0), staff = centreStats.reduce((sum, c) => sum + c.staff, 0);
-  res.json({ total, staff, students: total - staff, centres: centreStats, monthly });
+  res.json({ total, staff, students: total - staff, pending, centres: centreStats, monthly });
 });
 
 // The stored phone number without spaces, dashes, brackets or dots, and with +234/234 written as 0 (as phoneDigits does).
@@ -97,6 +99,33 @@ router.post("/duplicates", async (req, res) => {
     return { name: visible ? m.name : "A member", centre: m.centre, reasons };
   }) });
 });
+
+// Registrations from the public page waiting for approval, within the user's scope.
+router.get("/pending", async (req, res) => {
+  const params = [];
+  const { rows } = await query(`SELECT * FROM members WHERE deleted_at IS NULL AND approval = 'pending' AND ${scopeClause(req, params)} ORDER BY created_at, id`, params);
+  const list = await centres();
+  res.json({ items: rows.map((row) => fromRow(row, list)) });
+});
+
+async function decide(req, res, decision) {
+  const result = await tx(async (client) => {
+    const member = await loadMember(req, res, client, true); if (!member) return null;
+    if (member.approval !== "pending") { res.status(409).json({ error: `${member.name} has already been ${member.approval}.` }); return null; }
+    if (decision === "approve") {
+      await client.query("UPDATE members SET approval = 'approved', approved_at = NOW(3), approved_by = $1, updated_at = NOW(3), updated_by = $1 WHERE id = $2", [req.user.id, member.id]);
+      await audit.record(client, audit.contextFrom(req), "member.approve", { target: target(member), details: { centre: member.centre } });
+    } else {
+      await client.query("UPDATE members SET approval = 'rejected', deleted_at = NOW(3), deleted_by = $1 WHERE id = $2", [req.user.id, member.id]);
+      const reason = String(req.body?.reason || "").trim().slice(0, 300);
+      await audit.record(client, audit.contextFrom(req), "member.reject", { target: target(member), details: { centre: member.centre, ...(reason && { reason }), snapshot: snapshot(member) } });
+    }
+    return member;
+  });
+  if (result) res.json({ ok: true, name: result.name, centre: result.centre });
+}
+router.post("/:id/approve", (req, res) => decide(req, res, "approve"));
+router.post("/:id/reject", (req, res) => decide(req, res, "reject"));
 
 router.get("/:id", async (req, res) => {
   const member = await loadMember(req, res); if (!member) return;

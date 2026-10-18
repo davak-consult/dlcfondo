@@ -34,6 +34,7 @@ function fromRow(row, centreList) {
     initials: `${member.firstName[0] || ""}${member.surname[0] || ""}`.toUpperCase(),
     course: member.role === "Staff" ? member.position : member.programme,
     levelLabel: member.role === "Staff" ? "Staff" : member.level,
+    approval: row.approval || "approved",
     createdAt: row.created_at?.toISOString?.() ?? row.created_at,
     updatedAt: row.updated_at?.toISOString?.() ?? row.updated_at
   });

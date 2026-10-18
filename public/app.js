@@ -140,6 +140,7 @@ async function loadStats() {
   $("#studentShare").textContent = `${pct(stats.students, stats.total)}% of all members`;
   $("#staffCount").textContent = fmt(stats.staff);
   $("#centreCount").textContent = fmt(stats.centres.length);
+  $("#pendingCount").textContent = fmt(stats.pending); $("#pendingCount").hidden = !stats.pending;
   $("#navCount").textContent = stats.total >= 1000 ? `${(stats.total / 1000).toFixed(1)}k` : fmt(stats.total);
   $("#totalScope").textContent = isAdmin() ? "Across your fellowship" : `At ${state.user.centreName}`;
   $("#sidebarCentres").innerHTML = stats.centres.map((c) => `<button class="centre-link" data-centre="${c.id}"><i class="centre-dot ${dotFor(c)}"></i><span>${esc(c.name)}</span><small>${fmt(c.total)}</small></button>`).join("");
@@ -200,14 +201,14 @@ function openCentre(id) {
 
 // ---- Views ------------------------------------------------------------------------
 function greeting() { const hour = new Date().getHours(); return hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening"; }
-const VIEWS = {"Overview": "#overviewView", "Members": "#directoryView", "Fellowship centres": "#centresView", "Reports": "#reportsView", "Users": "#usersView", "Audit log": "#auditView"};
+const VIEWS = {"Overview": "#overviewView", "Members": "#directoryView", "Registrations": "#registrationsView", "Fellowship centres": "#centresView", "Reports": "#reportsView", "Users": "#usersView", "Audit log": "#auditView"};
 const showView = guard(async (view, {logFilter = false} = {}) => {
   if ((view === "Users" || view === "Audit log") && !isAdmin()) return;
   const changed = view !== state.view;
   state.view = view;
   $("#crumb").textContent = view;
   $("#pageTitle").textContent = view === "Overview" ? `${greeting()}, ${state.user.fullName.split(" ")[0]}` : view;
-  const subtitles = {"Overview": isAdmin() ? "Here’s what’s happening across your fellowship centres." : `Here’s what’s happening at ${state.user.centreName}.`, "Members": "Browse member information within your authorised access.", "Fellowship centres": "Your fellowship centres and their membership.", "Reports": "Download membership reports as CSV files.", "Users": "Manage who can sign in and what they can see.", "Audit log": "A tamper-evident record of every action taken on this system."};
+  const subtitles = {"Overview": isAdmin() ? "Here’s what’s happening across your fellowship centres." : `Here’s what’s happening at ${state.user.centreName}.`, "Members": "Browse member information within your authorised access.", "Registrations": isAdmin() ? "Approve people who registered online for any fellowship centre." : `Approve people who registered online for ${state.user.centreName}.`, "Fellowship centres": "Your fellowship centres and their membership.", "Reports": "Download membership reports as CSV files.", "Users": "Manage who can sign in and what they can see.", "Audit log": "A tamper-evident record of every action taken on this system."};
   $("#subtitle").textContent = subtitles[view];
   Object.entries(VIEWS).forEach(([name, selector]) => { $(selector).hidden = name !== view; });
   $(".heading-actions").hidden = view === "Users" || view === "Audit log";
@@ -218,6 +219,7 @@ const showView = guard(async (view, {logFilter = false} = {}) => {
   if (view === "Members") await Promise.all([loadMembers({logFilter}), state.stats ? null : loadStats()]);
   if (view === "Fellowship centres") await Promise.all([loadStats(), isAdmin() ? loadCentres() : null]);
   if (view === "Users") await loadUsers();
+  if (view === "Registrations") await Promise.all([loadRegistrations(), loadStats()]);
   if (view === "Audit log") { state.auditShown = PAGE; await loadAuditMeta(); await loadAudit({open: changed}); }
 });
 async function refreshData() {
@@ -467,6 +469,35 @@ function onStepClick(event) {
   if (index > wiz.step && wiz.mode === "add") { for (let i = wiz.step; i < index; i++) { const result = validateStep(i); if (result !== true) { goStep(i); focusField(result); return; } } }
   goStep(index);
 }
+
+// ---- Registrations awaiting approval ------------------------------------------------------
+let registrations = [];
+async function loadRegistrations() {
+  ({items: registrations} = await api("/api/members/pending"));
+  $("#registrationRows").innerHTML = registrations.map((m) => `<tr data-registration="${m.id}"><td><div class="member-cell"><div class="avatar ${toneFor(m.id)}">${esc(m.initials)}</div><span><strong>${esc(m.name)}</strong><small>${esc(m.role === "Staff" ? m.position : `${m.programme} · ${m.level}`)}</small></span></div></td><td>${esc(m.centre)}<small class="cell-sub">${esc(state.centres.find((c) => c.id === m.centreId)?.institutionShort || "")}</small></td><td>${esc(m.phone)}</td><td>${esc(formatTime(m.createdAt))}</td><td class="user-actions"><button class="text-link" data-registration-action="view">View</button><button class="text-link" data-registration-action="approve">Approve</button><button class="text-link danger-link" data-registration-action="reject">Reject</button></td></tr>`).join("");
+  $("#registrationsEmpty").hidden = registrations.length > 0;
+}
+const registrationAction = guard(async (event) => {
+  const button = event.target.closest("[data-registration-action]"); if (!button) return;
+  const member = registrations.find((m) => m.id === Number(button.closest("[data-registration]").dataset.registration));
+  const action = button.dataset.registrationAction;
+  if (action === "view") return openMember(member.id);
+  let body;
+  if (action === "approve" && !confirm(`Approve ${member.name} as a member of ${member.centre}?`)) return;
+  if (action === "reject") {
+    const reason = prompt(`Reject the registration of ${member.name}? It will be removed from this list. You can add a reason for the audit log (optional):`, "");
+    if (reason === null) return;
+    body = {reason};
+  }
+  await api(`/api/members/${member.id}/${action}`, {method: "POST", body});
+  await Promise.all([loadRegistrations(), loadStats()]);
+  toast(action === "approve" ? `${member.name} is now a member of ${member.centre}.` : `The registration of ${member.name} was rejected.`);
+});
+$("#registrationRows").addEventListener("click", registrationAction);
+$("#copyRegisterLink").addEventListener("click", async () => {
+  const link = `${window.location.origin}/register`;
+  try { await navigator.clipboard.writeText(link); toast(`Copied ${link}`); } catch { prompt("Copy this link:", link); }
+});
 
 // ---- Fellowship centres ---------------------------------------------------------------------
 let centreAdmin = null; // {institutions, centres with member/pastor counts}, loaded for the regional admin

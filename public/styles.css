@@ -46,3 +46,19 @@
 .centre-card-bottom .text-link{display:inline-flex;align-items:center;gap:6px}
 .centre-card-actions{display:flex;gap:12px}
 @media(max-width:600px){.institution-head{flex-direction:column;align-items:flex-start}}
+
+/* Public registration page */
+.register-screen{align-items:flex-start}
+.register-card{width:min(760px,100%);gap:20px}
+.register-head{display:flex;flex-direction:column;align-items:center;gap:8px;text-align:center}
+.register-head .auth-sub{margin:0}
+.register-head .req-note{margin:0!important}
+.register-section{border-top:1px solid var(--line);padding-top:18px;margin-top:4px}
+.register-section h2{font-size:16px;margin:0 0 4px;letter-spacing:-.3px}
+.register-intro{font-size:12px;color:#878791;margin:0 0 14px}
+.register-trap{position:absolute;left:-10000px;width:1px;height:1px;overflow:hidden}
+.register-done{align-items:center;text-align:center;margin-top:8vh}
+.register-card .auth-foot a{color:var(--primary);font-weight:600}
+@media(max-width:600px){.register-card{padding:24px 18px 20px}}
+.nav-count-alert{background:var(--accent);color:#fff;font-weight:700;border-radius:10px;padding:1px 7px;font-size:11px}
+.cell-sub{display:block;font-size:11px;color:#8a8a99}
