@@ -33,7 +33,8 @@ function createApp() {
   app.use(express.json({ limit: "100kb" }));
 
   app.get("/healthz", async (req, res) => {
-    try { await query("SELECT 1"); res.json({ ok: true }); } catch { res.status(503).json({ ok: false }); }
+    // Reports only the error code (e.g. ER_ACCESS_DENIED_ERROR, ER_NO_SUCH_TABLE), never connection details.
+    try { await query("SELECT 1 FROM schema_migrations LIMIT 1"); res.json({ ok: true }); } catch (error) { res.status(503).json({ ok: false, error: error.code || "DATABASE_ERROR" }); }
   });
 
   const api = express.Router();
