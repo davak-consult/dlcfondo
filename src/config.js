@@ -1,4 +1,22 @@
 // All runtime settings come from environment variables (see .env.example).
+const fs = require("fs");
+const path = require("path");
+
+// Hosts such as Hostinger write the settings to a .env file in the app folder instead of setting
+// real environment variables. Load it if present; variables already set take precedence.
+function loadEnvFile() {
+  const file = [path.join(__dirname, "..", ".env"), path.join(process.cwd(), ".env")].find((f) => fs.existsSync(f));
+  if (!file) return;
+  for (const line of fs.readFileSync(file, "utf8").split(/\r?\n/)) {
+    const match = line.match(/^\s*(?:export\s+)?([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*?)\s*$/);
+    if (!match || process.env[match[1]] !== undefined) continue;
+    let value = match[2];
+    if (/^(["']).*\1$/.test(value)) value = value.slice(1, -1);
+    process.env[match[1]] = value;
+  }
+}
+if (process.env.NODE_ENV !== "test") loadEnvFile();
+
 const env = process.env;
 const isProd = env.NODE_ENV === "production";
 

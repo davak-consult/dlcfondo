@@ -3,6 +3,7 @@
   "version": "1.0.0",
   "private": true,
   "description": "Member management for Deeper Life Campus Fellowship, Ondo Region",
+  "main": "src/server.js",
   "type": "commonjs",
   "engines": {
     "node": ">=20"
