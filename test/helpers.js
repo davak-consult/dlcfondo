@@ -1,27 +1,42 @@
-// Tests run against a real PostgreSQL database (docker compose up -d db) named dlcf_test.
-process.env.DATABASE_URL ||= "postgres://dlcf:dlcf@localhost:5433/dlcf_test";
+// Tests run against a real MariaDB/MySQL database (docker compose up -d db) named dlcf_test.
+process.env.DATABASE_URL ||= "mysql://dlcf:dlcf@127.0.0.1:3307/dlcf_test";
 process.env.LOG_REQUESTS = "false";
 process.env.COOKIE_SECURE = "false";
 
 const request = require("supertest");
 const { pool } = require("../src/db");
-const { migrate } = require("../src/migrate");
+const fs = require("fs");
+const path = require("path");
+const crypto = require("crypto");
+const { migrate, statements } = require("../src/migrate");
 const { createApp } = require("../src/app");
 const auth = require("../src/auth");
+const audit = require("../src/audit");
 
 const app = createApp();
 const PASSWORD = "Correct-Horse-42";
 
 async function resetDatabase() {
-  await pool.query("DROP SCHEMA public CASCADE; CREATE SCHEMA public;");
+  const client = await pool.connect();
+  try {
+    const { rows } = await client.query("SELECT table_name AS name FROM information_schema.tables WHERE table_schema = DATABASE()");
+    await client.query("SET FOREIGN_KEY_CHECKS = 0");
+    for (const { name } of rows) await client.query(`DROP TABLE \`${name}\``);
+    await client.query("SET FOREIGN_KEY_CHECKS = 1");
+  } finally { client.release(); }
   await migrate(pool, () => {});
 }
 
+async function applyMigration(file) {
+  for (const statement of statements(fs.readFileSync(path.join(__dirname, "..", "migrations", file), "utf8"))) await pool.query(statement);
+}
+
 async function createUser({ email, name = "Test User", role = "regional_admin", centreId = null, password = PASSWORD, mustChange = false }) {
-  const { rows: [row] } = await pool.query(
-    "INSERT INTO users (email, full_name, role, centre_id, password_hash, must_change_password) VALUES ($1, $2, $3, $4, $5, $6) RETURNING *",
-    [email, name, role, centreId, await auth.hashPassword(password), mustChange]);
-  return row;
+  const id = crypto.randomUUID();
+  await pool.query(
+    "INSERT INTO users (id, email, full_name, role, centre_id, password_hash, must_change_password) VALUES ($1, $2, $3, $4, $5, $6, $7)",
+    [id, email, name, role, centreId, await auth.hashPassword(password), mustChange]);
+  return (await pool.query("SELECT * FROM users WHERE id = $1", [id])).rows[0];
 }
 
 // A supertest agent that keeps cookies and sends the anti-CSRF header.
@@ -44,6 +59,6 @@ const validMember = (overrides = {}) => ({
 });
 
 const auditActions = async () => (await pool.query("SELECT action FROM audit_log ORDER BY seq")).rows.map((r) => r.action);
-const lastAudit = async () => (await pool.query("SELECT * FROM audit_log ORDER BY seq DESC LIMIT 1")).rows[0];
+const lastAudit = async () => audit.rowToEntry((await pool.query("SELECT * FROM audit_log ORDER BY seq DESC LIMIT 1")).rows[0]);
 
-module.exports = { app, pool, request, resetDatabase, createUser, client, signedIn, validMember, auditActions, lastAudit, PASSWORD };
+module.exports = { app, pool, request, resetDatabase, applyMigration, createUser, client, signedIn, validMember, auditActions, lastAudit, PASSWORD };

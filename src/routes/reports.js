@@ -1,7 +1,7 @@
 const express = require("express");
 const { query } = require("../db");
 const audit = require("../audit");
-const { centres, fromRow } = require("../members");
+const { centres, fromRow, recentMonths } = require("../members");
 const { FIELDS, groupLabel, todayISO } = require("../../public/member-schema.js");
 const { sendCsv } = require("../csv");
 
@@ -24,18 +24,16 @@ router.get("/members.csv", async (req, res) => {
 router.get("/monthly.csv", async (req, res) => {
   const { where, params } = scope(req);
   const list = (await centres()).filter((c) => req.user.role === "regional_admin" || c.id === req.user.centreId);
+  const months = recentMonths(12);
   const { rows } = await query(
-    `SELECT to_char(m, 'YYYY-MM') AS month, c.id AS centre_id,
-            (SELECT count(*)::int FROM members WHERE deleted_at IS NULL AND ${where} AND centre_id = c.id AND date_joined >= m AND date_joined < m + interval '1 month') AS joined
-       FROM generate_series(date_trunc('month', now()) - interval '11 months', date_trunc('month', now()), interval '1 month') AS m
-       CROSS JOIN centres c ORDER BY m, c.id`, params);
-  const months = [...new Set(rows.map((r) => r.month))];
+    `SELECT DATE_FORMAT(date_joined, '%Y-%m') AS month, centre_id, count(*) AS joined FROM members
+      WHERE deleted_at IS NULL AND ${where} AND date_joined >= '${months[0]}-01' GROUP BY month, centre_id`, params);
   const body = months.map((month) => {
     const counts = list.map((c) => rows.find((r) => r.month === month && r.centre_id === c.id)?.joined || 0);
     const label = new Date(`${month}-01T00:00:00Z`).toLocaleString("en-GB", { month: "long", year: "numeric", timeZone: "UTC" });
     return [label, ...counts, counts.reduce((a, b) => a + b, 0)];
   });
-  const { rows: totals } = await query(`SELECT centre_id, count(*)::int AS total FROM members WHERE deleted_at IS NULL AND ${where} GROUP BY centre_id`, params);
+  const { rows: totals } = await query(`SELECT centre_id, count(*) AS total FROM members WHERE deleted_at IS NULL AND ${where} GROUP BY centre_id`, params);
   const totalRow = list.map((c) => totals.find((t) => t.centre_id === c.id)?.total || 0);
   await audit.log(audit.contextFrom(req), "export.csv", { details: { report: "the monthly membership overview", rows: body.length + 1 } });
   sendCsv(res, `dlcf-ondo-monthly-${todayISO()}.csv`, [["Month", ...list.map((c) => `${c.name} — joined`), "Total joined"], ...body, ["Current total", ...totalRow, totalRow.reduce((a, b) => a + b, 0)]]);

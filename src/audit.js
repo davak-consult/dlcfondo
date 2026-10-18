@@ -1,14 +1,13 @@
 // Server-side audit log. Entries are written inside the same transaction as the change they
-// describe, serialised with an advisory lock, and chained: each hash covers the entry's contents
-// plus the previous entry's hash. The database rejects UPDATE/DELETE/TRUNCATE on audit_log.
+// describe, serialised by locking the single audit_chain_lock row, and chained: each hash covers the
+// entry's contents plus the previous entry's hash. The database rejects UPDATE/DELETE/TRUNCATE on audit_log.
 const crypto = require("crypto");
 const { tx, pool } = require("./db");
 
-const CHAIN_LOCK = 482901;
 const GENESIS = "GENESIS";
 const COLUMNS = ["seq", "ts", "user_id", "actor_email", "actor_name", "actor_role", "actor_centre", "ip", "user_agent", "action", "target_type", "target_id", "target_label", "details", "prev_hash"];
 
-// JSON with sorted keys, so the hash doesn't depend on how PostgreSQL orders jsonb keys.
+// JSON with sorted keys, so the hash doesn't depend on the order keys are stored in.
 function canonical(value) {
   if (value === null || typeof value !== "object") return JSON.stringify(value);
   if (Array.isArray(value)) return `[${value.map(canonical).join(",")}]`;
@@ -21,8 +20,10 @@ function contextFrom(req) {
 }
 
 async function record(client, ctx, action, { target = null, details = {}, actor = null } = {}) {
-  await client.query("SELECT pg_advisory_xact_lock($1)", [CHAIN_LOCK]);
-  const { rows: [last] } = await client.query("SELECT seq, hash FROM audit_log ORDER BY seq DESC LIMIT 1");
+  await client.query("SELECT id FROM audit_chain_lock WHERE id = 1 FOR UPDATE");
+  // A locking read sees the latest committed entry, whatever this transaction read earlier.
+  // (A shared lock only needs SELECT, so the restricted app user in scripts/create-app-role.sql can do it.)
+  const { rows: [last] } = await client.query("SELECT seq, hash FROM audit_log ORDER BY seq DESC LIMIT 1 LOCK IN SHARE MODE");
   const user = actor || ctx.user;
   const entry = {
     seq: last ? Number(last.seq) + 1 : 1,
@@ -44,7 +45,7 @@ async function record(client, ctx, action, { target = null, details = {}, actor 
   entry.hash = hashEntry(entry);
   await client.query(
     `INSERT INTO audit_log (${COLUMNS.join(", ")}, hash) VALUES (${COLUMNS.map((_, i) => `$${i + 1}`).join(", ")}, $${COLUMNS.length + 1})`,
-    [...COLUMNS.map((column) => column === "details" ? JSON.stringify(entry.details) : entry[column]), entry.hash]
+    [...COLUMNS.map((column) => column === "details" ? JSON.stringify(entry.details) : column === "ts" ? new Date(entry.ts) : entry[column]), entry.hash]
   );
   return entry;
 }
@@ -53,7 +54,8 @@ async function record(client, ctx, action, { target = null, details = {}, actor 
 const log = (ctx, action, options) => tx((client) => record(client, ctx, action, options));
 
 function rowToEntry(row) {
-  return { ...row, seq: Number(row.seq), ts: row.ts instanceof Date ? row.ts.toISOString() : row.ts };
+  const details = typeof row.details === "string" ? JSON.parse(row.details) : row.details;
+  return { ...row, seq: Number(row.seq), ts: row.ts instanceof Date ? row.ts.toISOString() : row.ts, ...(row.details !== undefined && { details }) };
 }
 
 // Walks the whole chain in pages, recomputing every hash.

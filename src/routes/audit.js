@@ -12,11 +12,11 @@ function filters(req) {
   const where = [], params = [];
   const add = (sql, value) => { params.push(value); where.push(sql.replace("?", `$${params.length}`)); };
   const q = String(req.query.q || "").trim().slice(0, 100);
-  if (q) add(`concat_ws(' ', action, actor_name, actor_email, target_label, details::text) ILIKE ?`, `%${q.replace(/[\\%_]/g, (c) => `\\${c}`)}%`);
-  if (req.query.category && categories().includes(req.query.category)) add("action = ANY(?)", actionsIn(req.query.category));
+  if (q) add(`concat_ws(' ', action, actor_name, actor_email, target_label, details) LIKE ?`, `%${q.replace(/[\\%_]/g, (c) => `\\${c}`)}%`);
+  if (req.query.category && categories().includes(req.query.category)) add("action IN (?)", actionsIn(req.query.category));
   if (req.query.actor) add("actor_email = ?", String(req.query.actor));
-  if (/^\d{4}-\d{2}-\d{2}$/.test(req.query.from || "")) add("ts >= ?::date", req.query.from);
-  if (/^\d{4}-\d{2}-\d{2}$/.test(req.query.to || "")) add("ts < ?::date + 1", req.query.to);
+  if (/^\d{4}-\d{2}-\d{2}$/.test(req.query.from || "")) add("ts >= ?", req.query.from);
+  if (/^\d{4}-\d{2}-\d{2}$/.test(req.query.to || "")) add("ts < DATE_ADD(?, INTERVAL 1 DAY)", req.query.to);
   return { where: where.length ? `WHERE ${where.join(" AND ")}` : "", params };
 }
 
@@ -27,7 +27,7 @@ router.get("/", async (req, res) => {
   if (req.query.open === "1") await audit.log(audit.contextFrom(req), "audit.view");
   const [{ rows }, { rows: [{ total }] }] = await Promise.all([
     query(`SELECT ${FIELDS} FROM audit_log ${where} ORDER BY seq DESC LIMIT ${limit} OFFSET ${offset}`, params),
-    query(`SELECT count(*)::int AS total FROM audit_log ${where}`, params)
+    query(`SELECT count(*) AS total FROM audit_log ${where}`, params)
   ]);
   res.json({ items: rows.map(audit.rowToEntry), total });
 });

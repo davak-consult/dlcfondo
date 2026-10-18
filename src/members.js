@@ -45,4 +45,13 @@ function snapshot(member) {
 
 const target = (member) => ({ type: "member", id: member.id, label: member.name });
 
-module.exports = { centres, institutions, fromRow, toColumns, diff, snapshot, target, clean, toColumn, STORED };
+// The last n calendar months (UTC) as "YYYY-MM", oldest first.
+function recentMonths(n) {
+  const now = new Date();
+  return Array.from({ length: n }, (_, i) => new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - (n - 1 - i), 1)).toISOString().slice(0, 7));
+}
+
+// Loads a member row by id (used after INSERT/UPDATE, since MySQL has no RETURNING).
+const memberRow = async (client, id) => (await client.query("SELECT * FROM members WHERE id = $1", [id])).rows[0];
+
+module.exports = { centres, institutions, fromRow, toColumns, diff, snapshot, target, clean, toColumn, STORED, recentMonths, memberRow };

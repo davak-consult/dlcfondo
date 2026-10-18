@@ -1,6 +1,7 @@
 // Creates the first regional admin account. Usage:
 //   npm run create-admin -- --email pastor@example.com --name "Pastor Name"
 // Prints a one-time temporary password; the admin must change it at first sign-in.
+const crypto = require("crypto");
 const { pool, tx } = require("../src/db");
 const auth = require("../src/auth");
 const audit = require("../src/audit");
@@ -16,7 +17,9 @@ async function main() {
   const password = auth.temporaryPassword();
   const passwordHash = await auth.hashPassword(password);
   await tx(async (client) => {
-    const { rows: [row] } = await client.query("INSERT INTO users (email, full_name, role, password_hash) VALUES ($1, $2, 'regional_admin', $3) RETURNING *", [email, name, passwordHash]);
+    const id = crypto.randomUUID();
+    await client.query("INSERT INTO users (id, email, full_name, role, password_hash) VALUES ($1, $2, $3, 'regional_admin', $4)", [id, email, name, passwordHash]);
+    const { rows: [row] } = await client.query("SELECT * FROM users WHERE id = $1", [id]);
     await audit.record(client, { ip: "command line", userAgent: "create-admin script" }, "user.create", { target: { type: "user", id: row.id, label: name }, details: { email, role: "Regional admin", centre: "All centres" } });
   });
   console.log(`\nCreated regional admin ${name} <${email}>.\nTemporary password: ${password}\nThey will be asked to choose a new password at first sign-in.\n`);

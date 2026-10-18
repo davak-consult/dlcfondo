@@ -1,7 +1,7 @@
 const express = require("express");
 const { query, tx } = require("../db");
 const audit = require("../audit");
-const { centres, institutions, fromRow, toColumns, diff, snapshot, target, clean } = require("../members");
+const { centres, institutions, fromRow, toColumns, diff, snapshot, target, clean, recentMonths, memberRow } = require("../members");
 const { phoneDigits } = require("../../public/member-schema.js");
 
 const router = express.Router();
@@ -40,14 +40,14 @@ router.get("/", async (req, res) => {
   const q = String(req.query.q || "").trim().slice(0, 100);
   if (q) {
     params.push(`%${q.replace(/[\\%_]/g, (c) => `\\${c}`)}%`);
-    where.push(`concat_ws(' ', first_name, other_names, surname, programme, position, department, staff_department, matric_no, phone, email) ILIKE $${params.length}`);
+    where.push(`concat_ws(' ', first_name, other_names, surname, programme, position, department, staff_department, matric_no, phone, email) LIKE $${params.length}`);
   }
   const limit = Math.min(Math.max(Number(req.query.limit) || 50, 1), 200);
   const offset = Math.max(Number(req.query.offset) || 0, 0);
   const filter = where.join(" AND ");
   const [{ rows }, { rows: [count] }] = await Promise.all([
     query(`SELECT * FROM members WHERE ${filter} ORDER BY created_at DESC, id DESC LIMIT ${limit} OFFSET ${offset}`, params),
-    query(`SELECT count(*)::int AS total FROM members WHERE ${filter}`, params)
+    query(`SELECT count(*) AS total FROM members WHERE ${filter}`, params)
   ]);
   const list = await centres();
   const total = count.total;
@@ -60,15 +60,20 @@ router.get("/", async (req, res) => {
 router.get("/stats", async (req, res) => {
   const params = [];
   const where = `deleted_at IS NULL AND ${scopeClause(req, params)}`;
-  const { rows: byCentre } = await query(`SELECT centre_id, count(*)::int AS total, count(*) FILTER (WHERE role = 'Staff')::int AS staff FROM members WHERE ${where} GROUP BY centre_id`, params);
-  const { rows: monthly } = await query(
-    `SELECT to_char(m, 'YYYY-MM') AS month, (SELECT count(*)::int FROM members WHERE ${where} AND date_joined < m + interval '1 month') AS total
-       FROM generate_series(date_trunc('month', now()) - interval '5 months', date_trunc('month', now()), interval '1 month') AS m ORDER BY m`, params);
+  const { rows: byCentre } = await query(`SELECT centre_id, count(*) AS total, CAST(SUM(role = 'Staff') AS SIGNED) AS staff FROM members WHERE ${where} GROUP BY centre_id`, params);
+  // Running total of members at the end of each of the last six months.
+  const { rows: joined } = await query(`SELECT DATE_FORMAT(date_joined, '%Y-%m') AS month, count(*) AS n FROM members WHERE ${where} GROUP BY month`, params);
+  const monthly = recentMonths(6).map((month) => ({ month, total: joined.filter((r) => r.month <= month).reduce((sum, r) => sum + r.n, 0) }));
   const list = (await centres()).filter((c) => isAdmin(req) || c.id === req.user.centreId);
   const centreStats = list.map((c) => { const row = byCentre.find((r) => r.centre_id === c.id) || { total: 0, staff: 0 }; return { ...c, total: row.total, staff: row.staff }; });
   const total = centreStats.reduce((sum, c) => sum + c.total, 0), staff = centreStats.reduce((sum, c) => sum + c.staff, 0);
   res.json({ total, staff, students: total - staff, centres: centreStats, monthly });
 });
+
+// The stored phone number without spaces, dashes, brackets or dots, and with +234/234 written as 0 (as phoneDigits does).
+const STRIPPED_PHONE = "REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(phone, ' ', ''), '-', ''), '(', ''), ')', ''), '.', '')";
+const NORMALISED_PHONE = `CASE WHEN ${STRIPPED_PHONE} LIKE '+234%' THEN CONCAT('0', SUBSTRING(${STRIPPED_PHONE}, 5))
+  WHEN ${STRIPPED_PHONE} LIKE '234%' THEN CONCAT('0', SUBSTRING(${STRIPPED_PHONE}, 4)) ELSE ${STRIPPED_PHONE} END`;
 
 // Warns about likely duplicates before saving. Campus pastors don't see names from other centres.
 router.post("/duplicates", async (req, res) => {
@@ -79,7 +84,7 @@ router.post("/duplicates", async (req, res) => {
   if (!phone && !email && !matric) return res.json({ matches: [] });
   const { rows } = await query(
     `SELECT * FROM members WHERE deleted_at IS NULL AND id <> $1 AND (
-       ($2 <> '' AND regexp_replace(regexp_replace(phone, '[\\s\\-().]', '', 'g'), '^\\+?234', '0') = $2)
+       ($2 <> '' AND ${NORMALISED_PHONE} = $2)
        OR ($3 <> '' AND lower(email) = $3) OR ($4 <> '' AND upper(matric_no) = $4)) LIMIT 5`, [excludeId, phone, email, matric]);
   const list = await centres();
   res.json({ matches: rows.map((row) => {
@@ -123,10 +128,10 @@ router.post("/", async (req, res) => {
   const cleaned = await cleanFor(req, res, req.body); if (!cleaned) return;
   const { columns, values } = toColumns(cleaned.data, cleaned.centre.id);
   const member = await tx(async (client) => {
-    const { rows: [row] } = await client.query(
-      `INSERT INTO members (${columns.join(", ")}, created_by, updated_by) VALUES (${values.map((_, i) => `$${i + 1}`).join(", ")}, $${values.length + 1}, $${values.length + 1}) RETURNING *`,
+    const { insertId } = await client.query(
+      `INSERT INTO members (${columns.join(", ")}, created_by, updated_by) VALUES (${values.map((_, i) => `$${i + 1}`).join(", ")}, $${values.length + 1}, $${values.length + 1})`,
       [...values, req.user.id]);
-    const created = fromRow(row, await centres());
+    const created = fromRow(await memberRow(client, insertId), await centres());
     await audit.record(client, audit.contextFrom(req), "member.create", { target: target(created), details: { centre: created.centre, role: created.role } });
     return created;
   });
@@ -144,10 +149,10 @@ router.put("/:id", async (req, res) => {
     }
     const { columns, values } = toColumns(cleaned.data, cleaned.centre.id);
     const sets = columns.map((column, i) => `${column} = $${i + 1}`);
-    const { rows: [row] } = await client.query(
-      `UPDATE members SET ${sets.join(", ")}, updated_at = now(), updated_by = $${values.length + 1} WHERE id = $${values.length + 2} RETURNING *`,
+    await client.query(
+      `UPDATE members SET ${sets.join(", ")}, updated_at = NOW(3), updated_by = $${values.length + 1} WHERE id = $${values.length + 2}`,
       [...values, req.user.id, before.id]);
-    const after = fromRow(row, await centres());
+    const after = fromRow(await memberRow(client, before.id), await centres());
     await audit.record(client, audit.contextFrom(req), "member.update", { target: target(after), details: { changes: diff(before, after) } });
     return after;
   });
@@ -157,7 +162,7 @@ router.put("/:id", async (req, res) => {
 router.delete("/:id", async (req, res) => {
   const removed = await tx(async (client) => {
     const member = await loadMember(req, res, client, true); if (!member) return null;
-    await client.query("UPDATE members SET deleted_at = now(), deleted_by = $1 WHERE id = $2", [req.user.id, member.id]);
+    await client.query("UPDATE members SET deleted_at = NOW(3), deleted_by = $1 WHERE id = $2", [req.user.id, member.id]);
     await audit.record(client, audit.contextFrom(req), "member.delete", { target: target(member), details: { centre: member.centre, snapshot: snapshot(member) } });
     return member;
   });

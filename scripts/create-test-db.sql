@@ -1,1 +1,2 @@
-CREATE DATABASE dlcf_test OWNER dlcf;
+CREATE DATABASE IF NOT EXISTS dlcf_test CHARACTER SET utf8mb4;
+GRANT ALL PRIVILEGES ON dlcf_test.* TO 'dlcf'@'%';

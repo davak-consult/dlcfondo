@@ -42,7 +42,7 @@ function cookieOptions() {
 async function createSession(res, userId, req) {
   const token = crypto.randomBytes(32).toString("base64url");
   await query(
-    "INSERT INTO sessions (token_hash, user_id, expires_at, ip, user_agent) VALUES ($1, $2, now() + make_interval(hours => $3), $4, $5)",
+    "INSERT INTO sessions (token_hash, user_id, expires_at, ip, user_agent) VALUES ($1, $2, NOW(3) + INTERVAL $3 HOUR, $4, $5)",
     [sha256(token), userId, config.sessionMaxHours, req.ip, String(req.get("user-agent") || "").slice(0, 300)]
   );
   res.cookie(COOKIE, token, cookieOptions());
@@ -78,7 +78,7 @@ async function loadSession(req, res, next) {
     res.clearCookie(COOKIE, { ...cookieOptions(), maxAge: undefined });
     return next();
   }
-  if (Date.now() - row.last_seen_at.getTime() > 60000) await query("UPDATE sessions SET last_seen_at = now() WHERE token_hash = $1", [tokenHash]);
+  if (Date.now() - row.last_seen_at.getTime() > 60000) await query("UPDATE sessions SET last_seen_at = NOW(3) WHERE token_hash = $1", [tokenHash]);
   req.user = toUser(row);
   req.sessionHash = tokenHash;
   next();

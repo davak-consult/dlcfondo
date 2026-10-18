@@ -1,3 +1,4 @@
+const crypto = require("crypto");
 const express = require("express");
 const { query, tx } = require("../db");
 const audit = require("../audit");
@@ -7,6 +8,7 @@ const { centres } = require("../members");
 const router = express.Router();
 router.param("id", (req, res, next, id) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id) ? next() : res.status(404).json({ error: "Account not found." }));
 const ROLES = { regional_admin: "Regional admin", campus_pastor: "Campus pastor" };
+const userRow = async (client, id) => (await client.query("SELECT * FROM users WHERE id = $1", [id])).rows[0];
 const target = (u) => ({ type: "user", id: u.id, label: u.full_name || u.fullName });
 const view = (row) => ({ id: row.id, email: row.email, fullName: row.full_name, role: row.role, centreId: row.centre_id, isActive: row.is_active, mustChangePassword: row.must_change_password, lockedUntil: row.locked_until, lastLoginAt: row.last_login_at, createdAt: row.created_at });
 
@@ -38,9 +40,11 @@ router.post("/", async (req, res) => {
   const temporaryPassword = auth.temporaryPassword();
   const passwordHash = await auth.hashPassword(temporaryPassword);
   const user = await tx(async (client) => {
-    const { rows: [row] } = await client.query(
-      "INSERT INTO users (email, full_name, role, centre_id, password_hash, must_change_password) VALUES ($1, $2, $3, $4, $5, true) RETURNING *",
-      [data.email, data.fullName, data.role, data.centreId, passwordHash]);
+    const id = crypto.randomUUID();
+    await client.query(
+      "INSERT INTO users (id, email, full_name, role, centre_id, password_hash, must_change_password) VALUES ($1, $2, $3, $4, $5, $6, TRUE)",
+      [id, data.email, data.fullName, data.role, data.centreId, passwordHash]);
+    const row = await userRow(client, id);
     await audit.record(client, audit.contextFrom(req), "user.create", { target: target(row), details: { email: row.email, role: ROLES[row.role], centre: (await centres()).find((c) => c.id === row.centre_id)?.name || "All centres" } });
     return row;
   });
@@ -59,12 +63,13 @@ router.patch("/:id", async (req, res) => {
     if (before.id === req.user.id && (role !== "regional_admin" || data.isActive === false)) { res.status(400).json({ error: "You can’t remove your own admin access or deactivate yourself." }); return null; }
     const isActive = data.isActive ?? before.is_active;
     if (before.role === "regional_admin" && (role !== "regional_admin" || !isActive)) {
-      const { rows: [{ count }] } = await client.query("SELECT count(*)::int FROM users WHERE role = 'regional_admin' AND is_active AND id <> $1", [before.id]);
+      const { rows: [{ count }] } = await client.query("SELECT count(*) AS count FROM users WHERE role = 'regional_admin' AND is_active AND id <> $1", [before.id]);
       if (!count) { res.status(400).json({ error: "There must always be at least one active regional admin." }); return null; }
     }
-    const { rows: [after] } = await client.query(
-      "UPDATE users SET full_name = $1, role = $2, centre_id = $3, is_active = $4, locked_until = CASE WHEN $5 THEN NULL ELSE locked_until END, updated_at = now() WHERE id = $6 RETURNING *",
+    await client.query(
+      "UPDATE users SET full_name = $1, role = $2, centre_id = $3, is_active = $4, locked_until = CASE WHEN $5 THEN NULL ELSE locked_until END, updated_at = NOW(3) WHERE id = $6",
       [data.fullName ?? before.full_name, role, centreId, isActive, req.body?.unlock === true, before.id]);
+    const after = await userRow(client, before.id);
     if (!after.is_active || after.role !== before.role || after.centre_id !== before.centre_id) await client.query("DELETE FROM sessions WHERE user_id = $1", [after.id]);
     const list = await centres(); const centreName = (id) => list.find((c) => c.id === id)?.name || "All centres";
     const changes = [
@@ -82,8 +87,9 @@ router.post("/:id/reset-password", async (req, res) => {
   const temporaryPassword = auth.temporaryPassword();
   const passwordHash = await auth.hashPassword(temporaryPassword);
   const user = await tx(async (client) => {
-    const { rows: [row] } = await client.query("UPDATE users SET password_hash = $1, must_change_password = true, failed_logins = 0, locked_until = NULL, updated_at = now() WHERE id = $2 RETURNING *", [passwordHash, req.params.id]);
-    if (!row) return null;
+    const { rowCount } = await client.query("UPDATE users SET password_hash = $1, must_change_password = TRUE, failed_logins = 0, locked_until = NULL, updated_at = NOW(3) WHERE id = $2", [passwordHash, req.params.id]);
+    if (!rowCount) return null;
+    const row = await userRow(client, req.params.id);
     await client.query("DELETE FROM sessions WHERE user_id = $1", [row.id]);
     await audit.record(client, audit.contextFrom(req), "user.password_reset", { target: target(row) });
     return row;

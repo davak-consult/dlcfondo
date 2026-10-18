@@ -32,14 +32,14 @@ router.post("/login", loginLimiter, async (req, res) => {
     const attempts = row.failed_logins + 1;
     const lock = valid ? false : attempts >= config.maxFailedLogins;
     await tx(async (client) => {
-      if (!valid) await client.query(`UPDATE users SET failed_logins = $1, locked_until = ${lock ? `now() + make_interval(mins => ${config.lockoutMinutes})` : "locked_until"} WHERE id = $2`, [lock ? 0 : attempts, row.id]);
+      if (!valid) await client.query(`UPDATE users SET failed_logins = $1, locked_until = ${lock ? `NOW(3) + INTERVAL ${Number(config.lockoutMinutes)} MINUTE` : "locked_until"} WHERE id = $2`, [lock ? 0 : attempts, row.id]);
       await audit.record(client, ctx, "auth.login_failed", { target: { type: "user", id: user.id, label: user.fullName }, details: { email, reason: valid ? "account is deactivated" : "wrong password" } });
       if (lock) await audit.record(client, ctx, "auth.locked", { target: { type: "user", id: user.id, label: user.fullName }, details: { email, attempts } });
     });
     return res.status(401).json({ error: GENERIC });
   }
   await tx(async (client) => {
-    await client.query("UPDATE users SET failed_logins = 0, locked_until = NULL, last_login_at = now() WHERE id = $1", [row.id]);
+    await client.query("UPDATE users SET failed_logins = 0, locked_until = NULL, last_login_at = NOW(3) WHERE id = $1", [row.id]);
     await audit.record(client, ctx, "auth.login", { actor: user });
   });
   await auth.destroySession(req, res);
@@ -65,7 +65,7 @@ router.post("/password", auth.requireAuth, async (req, res) => {
   if (problem) return res.status(400).json({ error: problem, errors: { newPassword: problem } });
   const passwordHash = await auth.hashPassword(newPassword);
   await tx(async (client) => {
-    await client.query("UPDATE users SET password_hash = $1, must_change_password = false, updated_at = now() WHERE id = $2", [passwordHash, req.user.id]);
+    await client.query("UPDATE users SET password_hash = $1, must_change_password = FALSE, updated_at = NOW(3) WHERE id = $2", [passwordHash, req.user.id]);
     // Sign out every other device using the old password.
     await client.query("DELETE FROM sessions WHERE user_id = $1 AND token_hash <> $2", [req.user.id, req.sessionHash]);
     await audit.record(client, audit.contextFrom(req), "auth.password_changed", { target: { type: "user", id: req.user.id, label: req.user.fullName } });

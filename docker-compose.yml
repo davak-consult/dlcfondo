@@ -1,18 +1,20 @@
 # Local development and testing. For production, see README.md ("Deploying").
 services:
   db:
-    image: postgres:17-alpine
+    # MariaDB, as on Hostinger. The app also works with MySQL 8.0.16+.
+    image: mariadb:11.4
     environment:
-      POSTGRES_USER: dlcf
-      POSTGRES_PASSWORD: dlcf
-      POSTGRES_DB: dlcf
+      MARIADB_ROOT_PASSWORD: dlcf-root
+      MARIADB_USER: dlcf
+      MARIADB_PASSWORD: dlcf
+      MARIADB_DATABASE: dlcf
     ports:
-      - "127.0.0.1:${DB_PORT:-5433}:5432"
+      - "127.0.0.1:${DB_PORT:-3307}:3306"
     volumes:
-      - dbdata:/var/lib/postgresql/data
+      - mariadb-data:/var/lib/mysql
       - ./scripts/create-test-db.sql:/docker-entrypoint-initdb.d/create-test-db.sql:ro
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U dlcf"]
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
       interval: 2s
       retries: 30
   app:
@@ -21,11 +23,11 @@ services:
       db:
         condition: service_healthy
     environment:
-      DATABASE_URL: postgres://dlcf:dlcf@db:5432/dlcf
+      DATABASE_URL: mysql://dlcf:dlcf@db:3306/dlcf
       COOKIE_SECURE: "false"
       TRUST_PROXY: "false"
     ports:
       - "127.0.0.1:3000:3000"
     profiles: ["app"]
 volumes:
-  dbdata:
+  mariadb-data:
