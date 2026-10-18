@@ -101,7 +101,6 @@ async function start() {
   }
   $("#registerBody").innerHTML = STEPS.map((step) => `<section class="register-section"><h2>${esc(step.heading)}</h2><p class="register-intro">${esc(step.intro)}</p><div class="form-grid">${step.fields.map(fieldHtml).join("")}</div></section>`).join("");
   const form = $("#registerForm");
-  form.elements.dateJoined.value = S.todayISO();
   form.querySelector('[name="role"][value="Student"]').checked = true;
   refreshCentres(); applyConditions();
   form.addEventListener("change", (event) => {

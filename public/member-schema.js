@@ -36,7 +36,7 @@
       {key: "phone", label: "Phone number", type: "tel", required: true, help: "Nigerian number, e.g. 0803 123 4567", validate: validPhone, autocomplete: "tel"},
       {key: "whatsapp", label: "WhatsApp number", type: "tel", help: "Leave blank if it’s the same as the phone number", validate: validPhone},
       {key: "email", label: "Email address", type: "email", validate: validEmail, autocomplete: "email", wide: true},
-      {key: "homeAddress", label: "Home address", help: "Permanent or family home address", wide: true, autocomplete: "street-address", maxLength: 300}
+      {key: "homeAddress", label: "Home address", required: true, help: "Permanent or family home address", wide: true, autocomplete: "street-address", maxLength: 300}
     ]},
     {id: "campus", title: "Campus", heading: "Campus details", intro: "Where this member studies or works.", fields: [
       {key: "role", label: "Member type", type: "choice", options: ["Student", "Staff"], required: true, wide: true},
@@ -46,17 +46,14 @@
       {key: "department", label: "Department", required: true, when: student},
       {key: "level", label: "Current level", type: "select", options: LEVELS, required: true, when: student, placeholder: "Select level"},
       {key: "programme", label: "Course of study", required: true, when: student, help: "e.g. B.Sc. Nursing Science"},
-      {key: "matricNo", label: "Matric number", when: student, maxLength: 40},
       {key: "admissionYear", label: "Year of admission", when: student, validate: validYear, inputmode: "numeric", maxLength: 4, placeholder: "e.g. 2024"},
-      {key: "residence", label: "Hostel / campus address", wide: true, when: student, help: "Where they can be visited during the semester", maxLength: 300},
+      {key: "residence", label: "Hostel / campus address", required: true, wide: true, when: student, help: "Where they can be visited during the semester", maxLength: 300},
       {key: "staffCategory", label: "Staff category", type: "choice", options: ["Academic", "Non-academic"], required: true, when: staff, wide: true},
       {key: "staffDepartment", label: "Department / unit", required: true, when: staff},
-      {key: "position", label: "Position / designation", required: true, when: staff, help: "e.g. Lecturer II, Bursary officer"},
-      {key: "staffId", label: "Staff ID", when: staff, maxLength: 40}
+      {key: "position", label: "Position / designation", required: true, when: staff, help: "e.g. Lecturer II, Bursary officer"}
     ]},
     {id: "fellowship", title: "Fellowship", heading: "Fellowship details", intro: "Their walk with the fellowship so far.", fields: [
       {key: "status", label: "Membership status", type: "select", options: STATUSES, required: true, staffOnly: true},
-      {key: "dateJoined", label: "Date joined the fellowship", type: "date", required: true, validate: notFuture, max: todayISO},
       {key: "bornAgain", label: "Born again?", type: "choice", options: ["Yes", "No", "Not sure"]},
       {key: "waterBaptism", label: "Water baptism", type: "choice", options: ["Yes", "No"]},
       {key: "holySpirit", label: "Holy Spirit baptism", type: "choice", options: ["Yes", "No"]},

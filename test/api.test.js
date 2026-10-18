@@ -107,10 +107,19 @@ describe("members", () => {
     assert.equal(ok.status, 201);
     assert.deepEqual([ok.body.unit, ok.body.leadership], ["", ""]);
   });
-  test("students must give their faculty, department and level", async () => {
-    const res = await admin.post("/api/members").send(h.validMember({ faculty: "", department: "", level: "", phone: "08030000023" }));
+  test("students must give their faculty, department, level and campus address; everyone a home address", async () => {
+    const res = await admin.post("/api/members").send(h.validMember({ faculty: "", department: "", level: "", residence: "", homeAddress: "", phone: "08030000023" }));
     assert.equal(res.status, 400);
-    assert.deepEqual(["faculty", "department", "level"].filter((k) => res.body.errors[k]), ["faculty", "department", "level"]);
+    assert.deepEqual(["faculty", "department", "level", "residence", "homeAddress"].filter((k) => res.body.errors[k]), ["faculty", "department", "level", "residence", "homeAddress"]);
+    const staff = await admin.post("/api/members").send(h.validMember({ role: "Staff", staffCategory: "Academic", staffDepartment: "Physics", position: "Lecturer II", residence: "", phone: "08030000024", firstName: "Staffer" }));
+    assert.equal(staff.status, 201, JSON.stringify(staff.body));
+  });
+  test("matric number, staff ID and date joined aren't collected; date joined is the day added", async () => {
+    const res = await admin.post("/api/members").send(h.validMember({ matricNo: "ACE/123", staffId: "S-9", dateJoined: "2020-01-01", phone: "08030000025", firstName: "Dated" }));
+    assert.equal(res.status, 201);
+    assert.equal(res.body.matricNo, undefined);
+    const { rows: [row] } = await h.pool.query("SELECT matric_no, staff_id, DATE_FORMAT(date_joined, '%Y-%m-%d') AS joined, DATE_FORMAT(UTC_DATE(), '%Y-%m-%d') AS today FROM members WHERE id = $1", [res.body.id]);
+    assert.deepEqual([row.matric_no, row.staff_id, row.joined], ["", "", row.today]);
   });
   test("viewing a profile is audited", async () => {
     await admin.get(`/api/members/${memberId}`).expect(200);
@@ -127,7 +136,7 @@ describe("members", () => {
     const res = await admin.put(`/api/members/${memberId}`).send({ ...h.validMember(), updatedAt });
     assert.equal(res.status, 409);
   });
-  test("search is audited and finds by matric / phone", async () => {
+  test("search is audited and finds by phone", async () => {
     const res = await admin.get("/api/members?q=0803 123");
     assert.equal(res.body.total, 1);
     assert.equal((await h.lastAudit()).action, "directory.search");

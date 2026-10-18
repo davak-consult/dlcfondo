@@ -33,7 +33,7 @@ router.post("/register", registerLimiter, async (req, res) => {
   const { columns, values } = toColumns(data, centre.id);
   await tx(async (client) => {
     const { insertId } = await client.query(
-      `INSERT INTO members (${columns.join(", ")}, approval) VALUES (${values.map((_, i) => `$${i + 1}`).join(", ")}, 'pending')`, values);
+      `INSERT INTO members (${columns.join(", ")}, date_joined, approval) VALUES (${values.map((_, i) => `$${i + 1}`).join(", ")}, CURRENT_DATE, 'pending')`, values);
     const member = fromRow(await memberRow(client, insertId), list);
     await audit.record(client, audit.contextFrom(req), "member.register", { target: target(member), details: { centre: member.centre } });
   });

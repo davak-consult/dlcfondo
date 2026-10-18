@@ -388,7 +388,7 @@ function renderReview() {
   const cards = detailSections(data).map((section) => `<div class="review-card"><header><h4>${esc(section.heading)}</h4><button type="button" class="text-link" data-goto="${section.index}">Edit</button></header><dl>${section.rows.map((row) => `<div class="${row.f.wide || row.f.type === "textarea" ? "wide" : ""}"><dt>${esc(row.label)}</dt><dd${row.value ? "" : ' class="empty"'}>${esc(row.value || "Not provided")}</dd></div>`).join("")}</dl></div>`).join("");
   const consent = wiz.mode === "add" ? `<div class="consent" id="consentWrap"><label class="check"><input type="checkbox" id="consent" aria-describedby="e-consent"><span>I confirm this member has agreed to DLCF Ondo Region keeping these details for fellowship care and administration. <span class="req">*</span></span></label><div class="field"><small class="error" id="e-consent" aria-live="polite"></small></div></div>` : "";
   $("#reviewBody").innerHTML = `<div id="dupeWarning"></div>${cards}${consent}`;
-  api("/api/members/duplicates", {method: "POST", body: {phone: data.phone, email: data.email, matricNo: data.matricNo, excludeId: wiz.member?.id}}).then(({matches}) => {
+  api("/api/members/duplicates", {method: "POST", body: {phone: data.phone, email: data.email, excludeId: wiz.member?.id}}).then(({matches}) => {
     if (!matches.length || !$("#dupeWarning")) return;
     $("#dupeWarning").innerHTML = `<div class="notice notice-warn" role="status"><span>⚠</span><span><strong>Possible duplicate.</strong> ${matches.map((m) => `${esc(m.name)} (${esc(m.centre)}) has the same ${esc(m.reasons.join(" and "))}`).join("; ")}. Check this isn’t the same person before saving.</span></div>`;
   }).catch(() => {});
@@ -399,7 +399,7 @@ function openForm(member = null) {
   $("#formKicker").textContent = member ? "EDIT MEMBER" : "NEW MEMBER";
   $("#formTitle").textContent = member ? member.name : "Add a member";
   const preset = allowedCentres().find((c) => String(c.id) === String(state.centreFilter)) || (allowedCentres().length === 1 ? allowedCentres()[0] : null);
-  writeForm(member || {role: "Student", institution: preset?.institution || formCtx().institutions[0], centre: preset?.name, status: "New member", dateJoined: S.todayISO()});
+  writeForm(member || {role: "Student", institution: preset?.institution || formCtx().institutions[0], centre: preset?.name, status: "New member"});
   applyConditions();
   closeModals(true);
   $("#formBackdrop").hidden = false;
@@ -432,7 +432,7 @@ const saveFromForm = guard(async ({another = false} = {}) => {
   await refreshData();
   if (another) {
     const keep = {role: data.role, institution: data.institution, centre: data.centre};
-    openForm(); writeForm({...keep, status: "New member", dateJoined: S.todayISO()}); applyConditions();
+    openForm(); writeForm({...keep, status: "New member"}); applyConditions();
     toast(`${saved.name} saved. Ready for the next member.`);
     return;
   }

@@ -42,6 +42,7 @@ function fromRow(row, centreList) {
 
 // Column list and values for INSERT/UPDATE, from cleaned data.
 function toColumns(data, centreId) {
+  // date_joined isn't asked on the form: it's the day the member is added (or, for online registrations, approved).
   const columns = ["centre_id"], values = [centreId];
   STORED.forEach((f) => { columns.push(toColumn(f.key)); values.push(DATE_FIELDS.has(f.key) && !data[f.key] ? null : data[f.key]); });
   return { columns, values };

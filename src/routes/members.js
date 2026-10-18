@@ -40,7 +40,7 @@ router.get("/", async (req, res) => {
   const q = String(req.query.q || "").trim().slice(0, 100);
   if (q) {
     params.push(`%${q.replace(/[\\%_]/g, (c) => `\\${c}`)}%`);
-    where.push(`concat_ws(' ', first_name, other_names, surname, programme, position, department, staff_department, matric_no, phone, email) LIKE $${params.length}`);
+    where.push(`concat_ws(' ', first_name, other_names, surname, programme, position, department, staff_department, phone, email) LIKE $${params.length}`);
   }
   const limit = Math.min(Math.max(Number(req.query.limit) || 50, 1), 200);
   const offset = Math.max(Number(req.query.offset) || 0, 0);
@@ -81,20 +81,18 @@ const NORMALISED_PHONE = `CASE WHEN ${STRIPPED_PHONE} LIKE '+234%' THEN CONCAT('
 router.post("/duplicates", async (req, res) => {
   const phone = phoneDigits(req.body?.phone).replace(/^\+?234/, "0");
   const email = String(req.body?.email || "").trim().toLowerCase();
-  const matric = String(req.body?.matricNo || "").trim().toUpperCase();
   const excludeId = Number(req.body?.excludeId) || 0;
-  if (!phone && !email && !matric) return res.json({ matches: [] });
+  if (!phone && !email) return res.json({ matches: [] });
   const { rows } = await query(
     `SELECT * FROM members WHERE deleted_at IS NULL AND id <> $1 AND (
        ($2 <> '' AND ${NORMALISED_PHONE} = $2)
-       OR ($3 <> '' AND lower(email) = $3) OR ($4 <> '' AND upper(matric_no) = $4)) LIMIT 5`, [excludeId, phone, email, matric]);
+       OR ($3 <> '' AND lower(email) = $3)) LIMIT 5`, [excludeId, phone, email]);
   const list = await centres();
   res.json({ matches: rows.map((row) => {
     const m = fromRow(row, list);
     const reasons = [];
     if (phone && phoneDigits(m.phone).replace(/^\+?234/, "0") === phone) reasons.push("phone number");
     if (email && m.email.toLowerCase() === email) reasons.push("email");
-    if (matric && m.matricNo.toUpperCase() === matric) reasons.push("matric number");
     const visible = isAdmin(req) || m.centreId === req.user.centreId;
     return { name: visible ? m.name : "A member", centre: m.centre, reasons };
   }) });
@@ -113,7 +111,7 @@ async function decide(req, res, decision) {
     const member = await loadMember(req, res, client, true); if (!member) return null;
     if (member.approval !== "pending") { res.status(409).json({ error: `${member.name} has already been ${member.approval}.` }); return null; }
     if (decision === "approve") {
-      await client.query("UPDATE members SET approval = 'approved', approved_at = NOW(3), approved_by = $1, updated_at = NOW(3), updated_by = $1 WHERE id = $2", [req.user.id, member.id]);
+      await client.query("UPDATE members SET approval = 'approved', approved_at = NOW(3), approved_by = $1, date_joined = CURRENT_DATE, updated_at = NOW(3), updated_by = $1 WHERE id = $2", [req.user.id, member.id]);
       await audit.record(client, audit.contextFrom(req), "member.approve", { target: target(member), details: { centre: member.centre } });
     } else {
       await client.query("UPDATE members SET approval = 'rejected', deleted_at = NOW(3), deleted_by = $1 WHERE id = $2", [req.user.id, member.id]);
@@ -159,7 +157,7 @@ router.post("/", async (req, res) => {
   const { columns, values } = toColumns(cleaned.data, cleaned.centre.id);
   const member = await tx(async (client) => {
     const { insertId } = await client.query(
-      `INSERT INTO members (${columns.join(", ")}, created_by, updated_by) VALUES (${values.map((_, i) => `$${i + 1}`).join(", ")}, $${values.length + 1}, $${values.length + 1})`,
+      `INSERT INTO members (${columns.join(", ")}, date_joined, created_by, updated_by) VALUES (${values.map((_, i) => `$${i + 1}`).join(", ")}, CURRENT_DATE, $${values.length + 1}, $${values.length + 1})`,
       [...values, req.user.id]);
     const created = fromRow(await memberRow(client, insertId), await centres());
     await audit.record(client, audit.contextFrom(req), "member.create", { target: target(created), details: { centre: created.centre, role: created.role } });
