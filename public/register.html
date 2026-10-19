@@ -1,38 +1,59 @@
 <!doctype html>
 <html lang="en">
 <head>
-  <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="theme-color" content="#3e4095"><meta name="description" content="Register as a member of Deeper Life Campus Fellowship, Ondo Region.">
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#2b2d6e"><meta name="description" content="Register as a member of Deeper Life Campus Fellowship, Ondo Region.">
   <title>Join DLCF Ondo Region</title>
   <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="icon" href="./images/dlcf-logo.png" type="image/png">
-  <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="./styles.css">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="./register.css">
 </head>
-<body class="register-body">
-  <main class="auth-screen register-screen">
-    <form class="auth-card register-card" id="registerForm" novalidate>
-      <header class="register-head">
-        <img src="./images/dlcf-logo.png" alt="DLCF logo" width="64" height="64">
-        <h1>Join DLCF Ondo Region</h1>
-        <p class="auth-sub">Register as a member of your fellowship centre. Your centre’s pastor will review your details before you’re added to the directory.</p>
-        <p class="req-note">Fields marked <span class="req">*</span> are required.</p>
+<body>
+  <div class="shell">
+    <aside class="brand" aria-label="About this registration">
+      <div class="brand-top"><span class="logo"><img src="./images/dlcf-logo.png" alt="DLCF logo" width="40" height="40"></span><div><strong>DLCF</strong><span>Ondo Region</span></div></div>
+      <div class="brand-copy">
+        <p class="eyebrow">Membership registration</p>
+        <h1>Join your fellowship centre</h1>
+        <p>Register once and your centre’s pastor will welcome you into the fellowship directory.</p>
+      </div>
+      <ol class="steps" id="stepList"></ol>
+      <ul class="assurances">
+        <li><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 10V7a5 5 0 0 1 10 0v3"/><rect x="4" y="10" width="16" height="11" rx="2.5"/></svg><span>Only your centre’s pastor and the regional admin can see your details.</span></li>
+        <li><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg><span>Takes about 3 minutes.</span></li>
+      </ul>
+    </aside>
+
+    <main class="main">
+      <header class="mobile-head">
+        <span class="logo"><img src="./images/dlcf-logo.png" alt="DLCF logo" width="34" height="34"></span>
+        <div><strong>Join DLCF Ondo Region</strong><span id="mobileStep">Step 1 of 5</span></div>
       </header>
-      <div id="registerBody"><p class="auth-sub">Loading…</p></div>
-      <!-- Leave empty: a hidden field that only automated spam fills in. -->
-      <div class="register-trap" aria-hidden="true"><label for="website">Website</label><input id="website" name="website" tabindex="-1" autocomplete="off"></div>
-      <div class="consent" id="consentWrap"><label class="check"><input type="checkbox" id="consent" aria-describedby="e-consent"><span>I agree to DLCF Ondo Region keeping these details for fellowship and pastoral care. Only my centre’s pastor and the regional admin can see them.</span></label><small class="error" id="e-consent"></small></div>
-      <p class="form-error" id="registerError" role="alert" hidden></p>
-      <button class="button button-primary auth-submit" type="submit" id="registerSubmit">Submit registration</button>
-      <p class="auth-foot">Already a pastor or admin? <a href="/">Sign in</a></p>
-    </form>
-    <section class="auth-card register-card register-done" id="registerDone" hidden>
-      <img src="./images/dlcf-logo.png" alt="DLCF logo" width="64" height="64">
-      <h1>Thank you!</h1>
-      <p class="auth-sub" id="doneText"></p>
-      <button class="button button-secondary" type="button" id="registerAnother">Register someone else</button>
-    </section>
-  </main>
+      <div class="progress" aria-hidden="true"><span id="progressBar"></span></div>
+
+      <form id="registerForm" class="form" novalidate>
+        <div id="stepsBody"><p class="loading">Loading…</p></div>
+        <!-- Leave empty: a hidden field that only automated spam fills in. -->
+        <div class="trap" aria-hidden="true"><label for="website">Website</label><input id="website" name="website" tabindex="-1" autocomplete="off"></div>
+        <p class="alert" id="registerError" role="alert" hidden></p>
+        <footer class="actions">
+          <button type="button" class="btn btn-ghost" id="backButton" hidden>Back</button>
+          <button type="submit" class="btn btn-primary" id="nextButton">Continue</button>
+        </footer>
+      </form>
+
+      <section class="done" id="done" hidden aria-live="polite">
+        <div class="done-mark"><svg viewBox="0 0 52 52" aria-hidden="true"><circle cx="26" cy="26" r="24"/><path d="M15 27l7 7 15-16"/></svg></div>
+        <h2>Registration sent</h2>
+        <p id="doneText"></p>
+        <p class="muted">You don’t need to do anything else. Your pastor may contact you on the phone number you gave.</p>
+        <button type="button" class="btn btn-ghost" id="registerAnother">Register someone else</button>
+      </section>
+
+      <p class="signin">Pastor or admin? <a href="/">Sign in</a></p>
+    </main>
+  </div>
   <script src="./member-schema.js"></script>
   <script src="./register.js"></script>
 </body>
