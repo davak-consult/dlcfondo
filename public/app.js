@@ -1,7 +1,8 @@
 const S = window.MemberSchema, A = window.AuditActions;
 const {STEPS, FIELDS} = S;
 const REVIEW = STEPS.length - 1;
-const PAGE = 50;
+const PER_PAGE = 15;
+const MEMBER_FILTERS = ["#typeFilter", "#genderFilter", "#statusFilter", "#workerFilter", "#schoolFilter"];
 const tones = ["sage", "lilac", "peach", "butter", "blue", "rose"];
 const CENTRE_DOTS = {adeyemi: "green", unimed: "violet", wesley: "amber", corpers: "teal"};
 const TYPE_BADGES = {Student: ["type-student", "♙ Student"], Staff: ["type-staff", "▤ Staff"], "Corps member": ["type-corps", "✦ Corps member"]};
@@ -12,7 +13,7 @@ const pct = (part, total) => total ? Math.round(part / total * 100) : 0;
 const esc = (value) => String(value ?? "").replace(/[&<>"']/g, (c) => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const formatTime = (iso) => new Date(iso).toLocaleString("en-GB", {day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit"});
 
-const state = {user: null, centres: [], stats: null, view: "Overview", centreFilter: "", membersShown: PAGE, auditShown: PAGE, openMember: null, idleMinutes: 30, lastActivity: Date.now()};
+const state = {user: null, centres: [], stats: null, view: "Overview", centreFilter: "", memberPage: 1, auditPage: 1, registrationPage: 1, userPage: 1, openMember: null, idleMinutes: 30, lastActivity: Date.now()};
 const R = window.Roles;
 const isAdmin = () => state.user?.role === "regional_admin";
 const isRegional = () => R.roleOf(state.user).regional;   // sees every centre
@@ -119,17 +120,49 @@ function startApp(user, centres, session) {
   $("#schoolFilter").innerHTML = centreOptions("All centres");
   $("#centresLabel").textContent = role.regional ? "YOUR CENTRES" : "YOUR CENTRE";
   // Nothing from a previous user's session (searches, filters, open records) carries over.
-  ["#searchBox", "#auditSearch", "#auditCategory", "#auditActor", "#auditFrom", "#auditTo"].forEach((s) => { $(s).value = ""; });
+  [...MEMBER_FILTERS, "#searchBox", "#auditSearch", "#auditCategory", "#auditActor", "#auditFrom", "#auditTo", "#registrationSearch", "#userSearch"].forEach((s) => { $(s).value = ""; });
+  $("#sortFilter").value = "newest";
+  $("#genderFilterWrap").hidden = role.femaleOnly; // sisters' coordinators only see female members anyway
+  $$(".search-clear").forEach((b) => { b.hidden = true; });
   $("#auditIntegrity").innerHTML = "";
-  Object.assign(state, {view: "", centreFilter: "", membersShown: PAGE, auditShown: PAGE, stats: null, openMember: null});
+  Object.assign(state, {view: "", centreFilter: "", memberPage: 1, auditPage: 1, registrationPage: 1, userPage: 1, stats: null, openMember: null});
   showView("Overview");
 }
 
 // ---- Rendering helpers -------------------------------------------------------------
 function statusClass(status) { return status === "Active" ? "status-active" : status === "New member" ? "status-new" : "status-inactive"; }
-function rowMarkup(m) {
+// ---- Search and pagination -----------------------------------------------------------
+const searchWords = (text) => String(text || "").trim().toLowerCase().split(/\s+/).filter(Boolean);
+// Escapes text and wraps the parts that match any search word in <mark>.
+function highlight(text, words = []) {
+  const value = String(text ?? "");
+  const parts = words.filter((w) => w.length > 1).map((w) => w.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"));
+  if (!parts.length) return esc(value);
+  return value.split(new RegExp(`(${parts.join("|")})`, "gi")).map((piece, i) => i % 2 ? `<mark>${esc(piece)}</mark>` : esc(piece)).join("");
+}
+// Client-side search: every word must appear somewhere in the item's text.
+const matches = (text, words) => { const haystack = text.toLowerCase(); return words.every((w) => haystack.includes(w)); };
+// Page numbers to show: first, last, and the pages around the current one, with gaps ("…") between.
+function pageList(page, pages) {
+  const shown = [...new Set([1, pages, page - 1, page, page + 1].filter((n) => n >= 1 && n <= pages))].sort((a, b) => a - b);
+  return shown.flatMap((n, i) => i && n - shown[i - 1] > 1 ? ["gap", n] : [n]);
+}
+// Renders "Showing 16–30 of 87 members" and, above 15 items, numbered page controls.
+function renderPager(container, {page, total, noun, onPage}) {
+  const pages = Math.max(1, Math.ceil(total / PER_PAGE));
+  const from = total ? (page - 1) * PER_PAGE + 1 : 0, to = Math.min(page * PER_PAGE, total);
+  const summary = `<span class="pager-summary">${total ? `Showing <strong>${fmt(from)}–${fmt(to)}</strong> of <strong>${fmt(total)}</strong> ${noun}` : `No ${noun}`}</span>`;
+  if (total <= PER_PAGE) { container.innerHTML = summary; container.onclick = null; return; }
+  const button = (n, text, label, extra = "") => `<button type="button" class="pager-btn ${extra}" data-page="${n}" aria-label="${label}"${n < 1 || n > pages ? " disabled" : ""}>${text}</button>`;
+  container.innerHTML = `${summary}<nav class="pager" aria-label="Pages">${button(page - 1, "‹ <span>Prev</span>", "Previous page", "pager-step")}${pageList(page, pages).map((n) => n === "gap" ? `<span class="pager-gap" aria-hidden="true">…</span>` : n === page ? `<button type="button" class="pager-btn pager-num active" aria-current="page" aria-label="Page ${n}, current">${n}</button>` : button(n, n, `Page ${n}`, "pager-num")).join("")}<span class="pager-mobile">${page} / ${pages}</span>${button(page + 1, "<span>Next</span> ›", "Next page", "pager-step")}</nav>`;
+  container.onclick = (event) => { const b = event.target.closest("[data-page]"); if (b && !b.disabled && !b.classList.contains("active")) onPage(Number(b.dataset.page)); };
+}
+// After changing page, bring the top of the list back into view.
+const scrollToList = (selector) => { const top = $(selector).getBoundingClientRect().top + window.scrollY - 80; if (window.scrollY > top) window.scrollTo({top, behavior: "smooth"}); };
+
+function rowMarkup(m, words = []) {
   const centre = state.centres.find((c) => c.id === m.centreId);
-  return `<tr data-person="${m.id}" tabindex="0"><td><div class="member-cell"><div class="avatar ${toneFor(m.id)}">${esc(m.initials)}</div><span><strong>${esc(m.name)}</strong><small>${esc(m.levelLabel || m.role)} · ${esc(m.institution.split(" ").slice(0, 2).join(" "))}</small></span></div></td><td><span class="type-badge ${(TYPE_BADGES[m.role] || TYPE_BADGES.Student)[0]}">${(TYPE_BADGES[m.role] || TYPE_BADGES.Student)[1]}</span></td><td><span class="centre-name"><i class="centre-dot ${dotFor(centre)}"></i>${esc(m.centre)}</span></td><td class="course-cell">${esc(m.course)}</td><td><span class="status-badge ${statusClass(m.status)}"><i></i>${esc(m.status)}</span></td><td><button class="row-more" aria-label="View ${esc(m.name)}">•••</button></td></tr>`;
+  return `<tr data-person="${m.id}" tabindex="0"><td><div class="member-cell"><div class="avatar ${toneFor(m.id)}">${esc(m.initials)}</div><span><strong>${highlight(m.name, words)}</strong><small>${highlight(m.levelLabel || m.role, words)} · ${esc(m.institution.split(" ").slice(0, 2).join(" "))}${words.length && m.phone ? ` · ${highlight(m.phone, words)}` : ""}</small></span></div></td><td><span class="type-badge ${(TYPE_BADGES[m.role] || TYPE_BADGES.Student)[0]}">${(TYPE_BADGES[m.role] || TYPE_BADGES.Student)[1]}</span></td><td><span class="centre-name"><i class="centre-dot ${dotFor(centre)}"></i>${highlight(m.centre, words)}</span></td><td class="course-cell">${highlight(m.course, words)}</td><td><span class="status-badge ${statusClass(m.status)}"><i></i>${esc(m.status)}</span></td><td><button class="row-more" aria-label="View ${esc(m.name)}">•••</button></td></tr>`;
 }
 function bindRows(container) {
   container.querySelectorAll("[data-person]").forEach((row) => {
@@ -170,7 +203,7 @@ function renderChart(monthly) {
 }
 async function loadRecent() {
   const {items} = await api("/api/members?limit=4");
-  $("#memberRows").innerHTML = items.map(rowMarkup).join("");
+  $("#memberRows").innerHTML = items.map((m) => rowMarkup(m)).join("");
   $("#emptyState").hidden = items.length > 0;
   bindRows($("#memberRows"));
 }
@@ -179,29 +212,33 @@ async function loadRecent() {
 let memberRequest = 0;
 async function loadMembers({logFilter = false} = {}) {
   const ticket = ++memberRequest;
-  const params = new URLSearchParams({limit: String(state.membersShown)});
+  const params = new URLSearchParams({limit: String(PER_PAGE), offset: String((state.memberPage - 1) * PER_PAGE), sort: $("#sortFilter").value});
   const q = $("#searchBox").value.trim();
   if (q) params.set("q", q);
   if (isRegional() && state.centreFilter) params.set("centreId", state.centreFilter);
+  const filters = {role: "#typeFilter", gender: "#genderFilter", status: "#statusFilter", isWorker: "#workerFilter"};
+  Object.entries(filters).forEach(([key, selector]) => { if ($(selector).value) params.set(key, $(selector).value); });
   if (logFilter) params.set("logFilter", "1");
   const {items, total} = await api(`/api/members?${params}`);
   if (ticket !== memberRequest) return; // a newer search has started
-  $("#allRows").innerHTML = items.map(rowMarkup).join("");
+  const pages = Math.max(1, Math.ceil(total / PER_PAGE));
+  if (state.memberPage > pages) { state.memberPage = pages; return loadMembers(); }
+  const words = searchWords(q);
+  $("#allRows").innerHTML = items.map((m) => rowMarkup(m, words)).join("");
   bindRows($("#allRows"));
-  const filtered = q || state.centreFilter;
+  const filtered = q || state.centreFilter || Object.values(filters).some((s) => $(s).value);
+  $("#resetFilter").hidden = !filtered && $("#sortFilter").value === "newest";
   $("#emptyDirectory").hidden = items.length > 0;
-  $("#emptyDirectoryTitle").textContent = filtered ? "No members match this search" : "No members yet";
-  $("#emptyDirectoryText").textContent = filtered ? "Try another name, programme or centre." : "Use “Add a member” to create the first record.";
-  $("#resultShown").textContent = fmt(items.length);
-  $("#resultCount").textContent = fmt(total);
-  $("#membersMore").hidden = items.length >= total;
+  $("#emptyDirectoryTitle").textContent = filtered ? "No members match" : "No members yet";
+  $("#emptyDirectoryText").textContent = filtered ? "Try fewer words, another spelling, or clear the filters." : "Use “Add a member” to create the first record.";
+  renderPager($("#membersPager"), {page: state.memberPage, total, noun: total === 1 ? "member" : "members", onPage: guard(async (n) => { state.memberPage = n; await loadMembers(); scrollToList("#directoryView"); })});
   const centre = state.centres.find((c) => String(c.id) === String(state.centreFilter));
   $("#directoryTitle").textContent = !isRegional() ? `${state.user.centreName} members` : centre ? `${centre.name} members` : "All members";
 }
 function openCentre(id) {
   state.centreFilter = isRegional() ? String(id) : "";
   $("#schoolFilter").value = state.centreFilter;
-  state.membersShown = PAGE;
+  state.memberPage = 1;
   showView("Members", {logFilter: isRegional()});
 }
 
@@ -226,7 +263,7 @@ const showView = guard(async (view, {logFilter = false} = {}) => {
   if (view === "Fellowship centres") await Promise.all([loadStats(), isAdmin() ? loadCentres() : null]);
   if (view === "Users") await loadUsers();
   if (view === "Registrations") await Promise.all([loadRegistrations(), loadStats()]);
-  if (view === "Audit log") { state.auditShown = PAGE; await loadAuditMeta(); await loadAudit({open: changed}); }
+  if (view === "Audit log") { state.auditPage = 1; await loadAuditMeta(); await loadAudit({open: changed}); }
 });
 async function refreshData() {
   await loadStats();
@@ -498,8 +535,19 @@ function onStepClick(event) {
 let registrations = [];
 async function loadRegistrations() {
   ({items: registrations} = await api("/api/members/pending"));
-  $("#registrationRows").innerHTML = registrations.map((m) => `<tr data-registration="${m.id}"><td class="cell-main"><div class="member-cell"><div class="avatar ${toneFor(m.id)}">${esc(m.initials)}</div><span><strong>${esc(m.name)}</strong><small>${esc(m.role === "Staff" ? m.position : `${m.programme} · ${m.level}`)}</small></span></div></td><td data-label="Fellowship centre">${esc(m.centre)}<small class="cell-sub">${esc(state.centres.find((c) => c.id === m.centreId)?.institutionShort || "")}</small></td><td data-label="Phone"><a href="tel:${esc(m.phone.replace(/\s/g, ""))}">${esc(m.phone)}</a></td><td data-label="Registered">${esc(formatTime(m.createdAt))}</td><td class="user-actions"><button class="text-link" data-registration-action="view">View</button><button class="text-link" data-registration-action="approve">Approve</button><button class="text-link danger-link" data-registration-action="reject">Reject</button></td></tr>`).join("");
+  renderRegistrations();
+}
+function renderRegistrations() {
+  const words = searchWords($("#registrationSearch").value);
+  const found = registrations.filter((m) => matches([m.name, m.phone, m.centre, m.course, m.institution, m.email].join(" "), words));
+  const pages = Math.max(1, Math.ceil(found.length / PER_PAGE));
+  state.registrationPage = Math.min(state.registrationPage, pages);
+  const shown = found.slice((state.registrationPage - 1) * PER_PAGE, state.registrationPage * PER_PAGE);
+  $("#registrationRows").innerHTML = shown.map((m) => `<tr data-registration="${m.id}"><td class="cell-main"><div class="member-cell"><div class="avatar ${toneFor(m.id)}">${esc(m.initials)}</div><span><strong>${highlight(m.name, words)}</strong><small>${highlight(m.course, words)}${m.role === "Student" ? ` · ${esc(m.level)}` : ""}</small></span></div></td><td data-label="Fellowship centre">${highlight(m.centre, words)}<small class="cell-sub">${esc(state.centres.find((c) => c.id === m.centreId)?.institutionShort || "")}</small></td><td data-label="Phone"><a href="tel:${esc(m.phone.replace(/\s/g, ""))}">${highlight(m.phone, words)}</a></td><td data-label="Registered">${esc(formatTime(m.createdAt))}</td><td class="user-actions"><button class="text-link" data-registration-action="view">View</button><button class="text-link" data-registration-action="approve">Approve</button><button class="text-link danger-link" data-registration-action="reject">Reject</button></td></tr>`).join("");
   $("#registrationsEmpty").hidden = registrations.length > 0;
+  $("#registrationsNoMatch").hidden = !registrations.length || found.length > 0;
+  $("#registrationSearch").closest(".search-row").hidden = registrations.length === 0;
+  renderPager($("#registrationsPager"), {page: state.registrationPage, total: found.length, noun: found.length === 1 ? "registration" : "registrations", onPage: (n) => { state.registrationPage = n; renderRegistrations(); scrollToList("#registrationsView"); }});
 }
 const registrationAction = guard(async (event) => {
   const button = event.target.closest("[data-registration-action]"); if (!button) return;
@@ -598,12 +646,22 @@ let users = [];
 let editingUser = null;
 async function loadUsers() {
   ({items: users} = await api("/api/users"));
-  $("#userRows").innerHTML = users.map((u) => {
+  renderUsers();
+}
+function renderUsers() {
+  const words = searchWords($("#userSearch").value);
+  const centreOf = (u) => centreLabel(state.centres.find((c) => c.id === u.centreId)) || "All centres";
+  const found = users.filter((u) => matches([u.fullName, u.email, ROLE_LABELS[u.role], centreOf(u)].join(" "), words));
+  const pages = Math.max(1, Math.ceil(found.length / PER_PAGE));
+  state.userPage = Math.min(state.userPage, pages);
+  $("#userRows").innerHTML = found.slice((state.userPage - 1) * PER_PAGE, state.userPage * PER_PAGE).map((u) => {
     const locked = u.lockedUntil && new Date(u.lockedUntil) > new Date();
     const status = !u.isActive ? ["Deactivated", "status-inactive"] : locked ? ["Locked", "status-new"] : u.mustChangePassword ? ["Awaiting first sign-in", "status-new"] : ["Active", "status-active"];
     const self = u.id === state.user.id;
-    return `<tr data-user="${u.id}"><td class="cell-main"><div class="member-cell"><div class="avatar ${toneFor(u.email.length)}">${esc(u.fullName.split(/\s+/).map((p) => p[0]).slice(0, 2).join("").toUpperCase())}</div><span><strong>${esc(u.fullName)}${self ? " (you)" : ""}</strong><small>${esc(u.email)}</small></span></div></td><td data-label="Role">${ROLE_LABELS[u.role]}</td><td data-label="Centre">${esc(centreLabel(state.centres.find((c) => c.id === u.centreId)) || "All centres")}</td><td data-label="Status"><span class="status-badge ${status[1]}"><i></i>${status[0]}</span></td><td data-label="Last sign-in">${u.lastLoginAt ? esc(formatTime(u.lastLoginAt)) : "Never"}</td><td class="user-actions"><button class="text-link" data-user-action="edit">Edit</button><button class="text-link" data-user-action="reset">Reset password</button>${locked ? `<button class="text-link" data-user-action="unlock">Unlock</button>` : ""}${self ? "" : `<button class="text-link ${u.isActive ? "danger-link" : ""}" data-user-action="${u.isActive ? "deactivate" : "activate"}">${u.isActive ? "Deactivate" : "Reactivate"}</button>`}</td></tr>`;
+    return `<tr data-user="${u.id}"><td class="cell-main"><div class="member-cell"><div class="avatar ${toneFor(u.email.length)}">${esc(u.fullName.split(/\s+/).map((p) => p[0]).slice(0, 2).join("").toUpperCase())}</div><span><strong>${highlight(u.fullName, words)}${self ? " (you)" : ""}</strong><small>${highlight(u.email, words)}</small></span></div></td><td data-label="Role">${highlight(ROLE_LABELS[u.role], words)}</td><td data-label="Centre">${highlight(centreOf(u), words)}</td><td data-label="Status"><span class="status-badge ${status[1]}"><i></i>${status[0]}</span></td><td data-label="Last sign-in">${u.lastLoginAt ? esc(formatTime(u.lastLoginAt)) : "Never"}</td><td class="user-actions"><button class="text-link" data-user-action="edit">Edit</button><button class="text-link" data-user-action="reset">Reset password</button>${locked ? `<button class="text-link" data-user-action="unlock">Unlock</button>` : ""}${self ? "" : `<button class="text-link ${u.isActive ? "danger-link" : ""}" data-user-action="${u.isActive ? "deactivate" : "activate"}">${u.isActive ? "Deactivate" : "Reactivate"}</button>`}</td></tr>`;
   }).join("");
+  $("#usersNoMatch").hidden = found.length > 0;
+  renderPager($("#usersPager"), {page: state.userPage, total: found.length, noun: found.length === 1 ? "account" : "accounts", onPage: (n) => { state.userPage = n; renderUsers(); scrollToList("#usersView"); }});
 }
 function openUserForm(user = null) {
   editingUser = user;
@@ -682,7 +740,7 @@ async function loadAuditMeta() {
 }
 async function loadAudit({open = false} = {}) {
   const ticket = ++auditRequest;
-  const params = new URLSearchParams({limit: String(state.auditShown)});
+  const params = new URLSearchParams({limit: String(PER_PAGE), offset: String((state.auditPage - 1) * PER_PAGE)});
   if (open) params.set("open", "1");
   const fields = {q: "#auditSearch", category: "#auditCategory", actor: "#auditActor", from: "#auditFrom", to: "#auditTo"};
   Object.entries(fields).forEach(([key, selector]) => { const value = $(selector).value.trim(); if (value) params.set(key, value); });
@@ -691,9 +749,7 @@ async function loadAudit({open = false} = {}) {
   auditItems = items;
   $("#auditRows").innerHTML = items.map((e) => `<tr class="audit-row sev-${A.severity(e)}" data-seq="${e.seq}" tabindex="0" aria-expanded="false"><td data-label="Entry">#${e.seq}</td><td class="audit-when" data-label="When">${esc(new Date(e.ts).toLocaleDateString("en-GB", {day: "numeric", month: "short", year: "numeric"}))}<small>${esc(new Date(e.ts).toLocaleTimeString("en-GB"))}</small></td><td data-label="Who">${esc(e.actor_name || "Not signed in")}<small class="audit-sub">${esc(e.actor_role ? `${e.actor_role}${e.actor_centre ? ` · ${e.actor_centre}` : ""}` : e.ip || "")}</small></td><td class="cell-main audit-activity"><span class="cat-badge">${esc(A.category(e))}</span>${esc(A.describe(e))}</td><td class="audit-toggle-cell"><span class="row-more audit-toggle" aria-hidden="true">›</span></td></tr><tr class="audit-detail" data-detail="${e.seq}" hidden><td colspan="5"></td></tr>`).join("");
   $("#auditEmpty").hidden = items.length > 0;
-  $("#auditShown").textContent = fmt(items.length);
-  $("#auditTotal").textContent = fmt(total);
-  $("#auditMore").hidden = items.length >= total;
+  renderPager($("#auditPager"), {page: state.auditPage, total, noun: total === 1 ? "entry" : "entries", onPage: guard(async (n) => { state.auditPage = n; await loadAudit(); scrollToList("#auditView"); })});
 }
 function showValue(value) { return value === "" || value == null ? `<span class="diff-empty">empty</span>` : esc(typeof value === "object" ? JSON.stringify(value) : value); }
 function auditDetail(e) {
@@ -777,16 +833,25 @@ $$("[data-reveal]").forEach((button) => button.addEventListener("click", () => {
 $("#signOut").addEventListener("click", guard(async () => { await api("/api/auth/logout", {method: "POST"}); showLogin("You’ve been signed out."); }));
 $("#changePassword").addEventListener("click", () => { closeMenu(); showPasswordScreen(false); });
 
-$("#schoolFilter").addEventListener("change", guard(async () => { state.centreFilter = $("#schoolFilter").value; state.membersShown = PAGE; await loadMembers({logFilter: !!state.centreFilter}); }));
+$("#schoolFilter").addEventListener("change", guard(async () => { state.centreFilter = $("#schoolFilter").value; state.memberPage = 1; await loadMembers({logFilter: !!state.centreFilter}); }));
+["#typeFilter", "#genderFilter", "#statusFilter", "#workerFilter", "#sortFilter"].forEach((s) => $(s).addEventListener("change", guard(async () => { state.memberPage = 1; await loadMembers(); })));
 let searchTimer;
-$("#searchBox").addEventListener("input", () => { clearTimeout(searchTimer); state.membersShown = PAGE; searchTimer = setTimeout(guard(loadMembers), 450); });
-$("#resetFilter").addEventListener("click", guard(async () => { $("#searchBox").value = ""; $("#schoolFilter").value = ""; state.centreFilter = ""; state.membersShown = PAGE; await loadMembers(); }));
-$("#membersMore").addEventListener("click", guard(async () => { state.membersShown += PAGE; await loadMembers(); }));
+$("#searchBox").addEventListener("input", () => { clearTimeout(searchTimer); state.memberPage = 1; searchTimer = setTimeout(guard(loadMembers), 300); });
+$("#resetFilter").addEventListener("click", guard(async () => {
+  [...MEMBER_FILTERS, "#searchBox"].forEach((s) => { $(s).value = ""; }); $("#sortFilter").value = "newest";
+  state.centreFilter = ""; state.memberPage = 1; syncClearButtons(); await loadMembers();
+}));
+$("#registrationSearch").addEventListener("input", () => { state.registrationPage = 1; renderRegistrations(); });
+$("#userSearch").addEventListener("input", () => { state.userPage = 1; renderUsers(); });
+// The × inside a search box clears it and re-runs the search.
+function syncClearButtons() { $$(".search-clear").forEach((b) => { b.hidden = !$(b.dataset.clear).value; }); }
+document.addEventListener("input", (event) => { if (event.target.matches(".search-field input")) syncClearButtons(); });
+$$(".search-clear").forEach((b) => b.addEventListener("click", () => { const input = $(b.dataset.clear); input.value = ""; input.dispatchEvent(new Event("input", {bubbles: true})); input.focus(); }));
 $("#closeModal").addEventListener("click", () => closeModals(true));
 $$("[data-close]").forEach((button) => button.addEventListener("click", () => closeModals()));
 $$(".modal-backdrop").forEach((backdrop) => backdrop.addEventListener("click", (event) => { if (event.target === event.currentTarget) closeModals(); }));
 $$("[data-view]").forEach((button) => button.addEventListener("click", () => {
-  if (button.dataset.view === "Members" && button.classList.contains("nav-item")) { state.centreFilter = ""; $("#schoolFilter").value = ""; state.membersShown = PAGE; }
+  if (button.dataset.view === "Members" && button.classList.contains("nav-item")) { state.centreFilter = ""; $("#schoolFilter").value = ""; state.memberPage = 1; }
   showView(button.dataset.view);
 }));
 $("#addButton").addEventListener("click", () => openForm());
@@ -816,14 +881,18 @@ $("#userForm").addEventListener("change", (event) => { if (event.target.name ===
 $("#userRows").addEventListener("click", userAction);
 $("#copyTemp").addEventListener("click", async () => { try { await navigator.clipboard.writeText($("#tempPassword").textContent); toast("Copied."); } catch { toast("Select the password and copy it manually."); } });
 let auditTimer;
-["#auditSearch", "#auditCategory", "#auditActor", "#auditFrom", "#auditTo"].forEach((id) => $(id).addEventListener("input", () => { clearTimeout(auditTimer); state.auditShown = PAGE; auditTimer = setTimeout(guard(loadAudit), 350); }));
-$("#auditReset").addEventListener("click", guard(async () => { ["#auditSearch", "#auditCategory", "#auditActor", "#auditFrom", "#auditTo"].forEach((id) => { $(id).value = ""; }); state.auditShown = PAGE; await loadAudit(); }));
-$("#auditMore").addEventListener("click", guard(async () => { state.auditShown += PAGE; await loadAudit(); }));
+["#auditSearch", "#auditCategory", "#auditActor", "#auditFrom", "#auditTo"].forEach((id) => $(id).addEventListener("input", () => { clearTimeout(auditTimer); state.auditPage = 1; auditTimer = setTimeout(guard(loadAudit), 300); }));
+$("#auditReset").addEventListener("click", guard(async () => { ["#auditSearch", "#auditCategory", "#auditActor", "#auditFrom", "#auditTo"].forEach((id) => { $(id).value = ""; }); state.auditPage = 1; syncClearButtons(); await loadAudit(); }));
 $("#auditRows").addEventListener("click", (event) => { const row = event.target.closest(".audit-row"); if (row) toggleAuditRow(row); });
 $("#auditRows").addEventListener("keydown", (event) => { const row = event.target.closest(".audit-row"); if (row && (event.key === "Enter" || event.key === " ")) { event.preventDefault(); toggleAuditRow(row); } });
 $("#auditVerify").addEventListener("click", verifyAudit);
 document.addEventListener("keydown", (event) => {
   if (!state.user || $("#appShell").hidden) return;
+  // "/" jumps to the search box of the page you're on; Esc in a search box clears it.
+  const typing = event.target.closest?.("input, textarea, select, [contenteditable]");
+  const searchFor = {"Members": "#searchBox", "Registrations": "#registrationSearch", "Users": "#userSearch", "Audit log": "#auditSearch"}[state.view];
+  if (event.key === "/" && !typing && searchFor && $(".modal-backdrop:not([hidden])") === null) { event.preventDefault(); $(searchFor).focus(); return; }
+  if (event.key === "Escape" && event.target.matches?.(".search-field input") && event.target.value) { event.preventDefault(); event.target.value = ""; event.target.dispatchEvent(new Event("input", {bubbles: true})); return; }
   if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") { event.preventDefault(); if (!closeModals()) return; showView("Members").then(() => $("#searchBox").focus()); }
   if (event.key === "Escape") { closeModals(); closeMenu(); }
 });

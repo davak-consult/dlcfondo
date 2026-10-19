@@ -329,6 +329,42 @@ describe("corpers fellowship", () => {
   });
 });
 
+describe("member search", () => {
+  before(async () => {
+    await admin.post("/api/members").send(h.validMember({ firstName: "Searchable", surname: "Okonkwo", gender: "Male", department: "Chemistry", phone: "0815 777 1234", level: "400 level" }));
+    await admin.post("/api/members").send(h.validMember({ firstName: "Zainab", surname: "Okonkwo", gender: "Female", department: "Physics", phone: "08157772222", isWorker: "Yes", unit: "Choir" }));
+  });
+  const names = async (query) => (await admin.get(`/api/members?limit=200&${query}`)).body.items.map((m) => m.firstName).sort();
+  test("every word must match, in any field", async () => {
+    assert.deepEqual(await names("q=okonkwo chem"), ["Searchable"]);
+    assert.deepEqual(await names("q=okonkwo"), ["Searchable", "Zainab"]);
+    assert.deepEqual(await names("q=choir zainab"), ["Zainab"]);
+  });
+  test("phone numbers match however they're typed", async () => {
+    for (const q of ["08157771234", "0815 777 1234", "+2348157771234", "7771234"]) assert.deepEqual(await names(`q=${encodeURIComponent(q)}`), ["Searchable"], q);
+  });
+  test("searches the centre name", async () => {
+    assert.ok((await names("q=UNIMED okonkwo")).length === 2);
+  });
+  test("filters by type, gender, worker and status; sorts by name", async () => {
+    assert.deepEqual(await names("q=okonkwo&gender=Female"), ["Zainab"]);
+    assert.deepEqual(await names("q=okonkwo&isWorker=Yes"), ["Zainab"]);
+    assert.deepEqual(await names("q=okonkwo&role=Staff"), []);
+    assert.deepEqual(await names("q=okonkwo&gender=Nonsense"), ["Searchable", "Zainab"], "unknown filter values are ignored");
+    const sorted = (await admin.get("/api/members?limit=200&sort=name")).body.items.map((m) => m.surname);
+    assert.deepEqual(sorted, [...sorted].sort((a, b) => a.localeCompare(b)));
+  });
+  test("pages with limit and offset", async () => {
+    const all = (await admin.get("/api/members?limit=200&sort=name")).body;
+    const page2 = (await admin.get("/api/members?limit=2&offset=2&sort=name")).body;
+    assert.equal(page2.total, all.total);
+    assert.deepEqual(page2.items.map((m) => m.id), all.items.slice(2, 4).map((m) => m.id));
+  });
+  test("search wildcards are treated as text", async () => {
+    assert.deepEqual(await names("q=%25"), []);
+  });
+});
+
 describe("sisters' coordinators", () => {
   let centreSister, regionalSister, brotherId, sisterId, otherSisterId;
   const adeyemi = { institution: "Adeyemi Federal University of Education", centre: "Adeyemi Centre" };

@@ -30,20 +30,37 @@ async function loadMember(req, res, client = null, lock = false) {
   return fromRow(row, await centres());
 }
 
+// Fields a search looks in. Every word typed must match one of them (or the centre name, or the phone digits).
+const SEARCHED = "concat_ws(' ', first_name, other_names, surname, faculty, department, programme, level, position, staff_department, state_code, ppa, phone, whatsapp, email, unit, state_of_origin, home_church)";
+const FILTERS = { role: ["Student", "Staff", "Corps member"], gender: ["Male", "Female"], status: ["New member", "Active", "Inactive", "Graduated"], isWorker: ["Yes", "No"] };
+const COLUMNS = { role: "role", gender: "gender", status: "status", isWorker: "is_worker" };
+const SORTS = { newest: "created_at DESC, id DESC", oldest: "created_at ASC, id ASC", name: "surname ASC, first_name ASC, id ASC" };
+const like = (text) => `%${text.replace(/[\\%_]/g, (c) => `\\${c}`)}%`;
+
 router.get("/", async (req, res) => {
   const params = [];
   const centreId = req.query.centreId ? Number(req.query.centreId) : null;
   const where = [`deleted_at IS NULL`, `approval = 'approved'`, scopeClause(req, params, centreId)];
-  const q = String(req.query.q || "").trim().slice(0, 100);
-  if (q) {
-    params.push(`%${q.replace(/[\\%_]/g, (c) => `\\${c}`)}%`);
-    where.push(`concat_ws(' ', first_name, other_names, surname, programme, position, department, staff_department, state_code, ppa, phone, email) LIKE $${params.length}`);
-  }
+  const q = String(req.query.q || "").trim().replace(/\s+/g, " ").slice(0, 100);
+  // A query that looks like a phone number ("0803 123 4567") is one search term; otherwise each word is.
+  const words = /^[\d\s+()-]{7,}$/.test(q) ? [q] : q.split(" ").filter(Boolean).slice(0, 6);
+  words.forEach((word) => {
+    params.push(like(word));
+    const n = params.length, alternatives = [`${SEARCHED} LIKE $${n}`, `centre_id IN (SELECT id FROM centres WHERE name LIKE $${n})`];
+    const digits = phoneDigits(word).replace(/^\+?234/, "0");
+    if (/^\+?\d{4,}$/.test(phoneDigits(word))) { params.push(like(digits)); alternatives.push(`${NORMALISED_PHONE} LIKE $${params.length}`); }
+    where.push(`(${alternatives.join(" OR ")})`);
+  });
+  Object.entries(FILTERS).forEach(([key, allowed]) => {
+    const value = String(req.query[key] || "");
+    if (allowed.includes(value)) { params.push(value); where.push(`${COLUMNS[key]} = $${params.length}`); }
+  });
+  const order = SORTS[req.query.sort] || SORTS.newest;
   const limit = Math.min(Math.max(Number(req.query.limit) || 50, 1), 200);
   const offset = Math.max(Number(req.query.offset) || 0, 0);
   const filter = where.join(" AND ");
   const [{ rows }, { rows: [count] }] = await Promise.all([
-    query(`SELECT * FROM members WHERE ${filter} ORDER BY created_at DESC, id DESC LIMIT ${limit} OFFSET ${offset}`, params),
+    query(`SELECT * FROM members WHERE ${filter} ORDER BY ${order} LIMIT ${limit} OFFSET ${offset}`, params),
     query(`SELECT count(*) AS total FROM members WHERE ${filter}`, params)
   ]);
   const list = await centres();
@@ -53,6 +70,7 @@ router.get("/", async (req, res) => {
   if (centreId && roleOf(req.user).regional && offset === 0 && req.query.logFilter === "1") await audit.log(ctx, "directory.filter", { details: { centre: list.find((c) => c.id === centreId)?.name || `centre ${centreId}` } });
   res.json({ items: rows.map((row) => fromRow(row, list)), total });
 });
+
 
 router.get("/stats", async (req, res) => {
   const params = [];
