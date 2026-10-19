@@ -7,7 +7,9 @@ const { centres } = require("../members");
 
 const router = express.Router();
 router.param("id", (req, res, next, id) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id) ? next() : res.status(404).json({ error: "Account not found." }));
-const ROLES = { regional_admin: "Regional admin", campus_pastor: "Campus pastor" };
+const { ROLES: ROLE_INFO, needsCentre } = require("../../public/roles.js");
+const ROLES = Object.fromEntries(Object.entries(ROLE_INFO).map(([key, info]) => [key, info.label]));
+const CENTRE_NEEDED = "Choose the fellowship centre this person looks after.";
 const userRow = async (client, id) => (await client.query("SELECT * FROM users WHERE id = $1", [id])).rows[0];
 const target = (u) => ({ type: "user", id: u.id, label: u.full_name || u.fullName });
 const view = (row) => ({ id: row.id, email: row.email, fullName: row.full_name, role: row.role, centreId: row.centre_id, isActive: row.is_active, mustChangePassword: row.must_change_password, lockedUntil: row.locked_until, lastLoginAt: row.last_login_at, createdAt: row.created_at });
@@ -32,8 +34,8 @@ router.get("/", async (req, res) => {
 
 router.post("/", async (req, res) => {
   const { data, errors } = await validate(req.body || {});
-  if (data.role === "campus_pastor" && !data.centreId) errors.centreId = "Choose the centre this pastor looks after.";
-  if (data.role === "regional_admin") data.centreId = null;
+  if (needsCentre(data.role) && !data.centreId) errors.centreId = CENTRE_NEEDED;
+  if (!needsCentre(data.role)) data.centreId = null;
   if (Object.keys(errors).length) return res.status(400).json({ error: "Some details need attention.", errors });
   const { rows: [existing] } = await query("SELECT 1 FROM users WHERE lower(email) = $1", [data.email]);
   if (existing) return res.status(400).json({ error: "An account with this email already exists.", errors: { email: "An account with this email already exists." } });
@@ -58,8 +60,8 @@ router.patch("/:id", async (req, res) => {
     const { rows: [before] } = await client.query("SELECT * FROM users WHERE id = $1 FOR UPDATE", [req.params.id]);
     if (!before) { res.status(404).json({ error: "Account not found." }); return null; }
     const role = data.role ?? before.role;
-    const centreId = role === "regional_admin" ? null : (data.centreId !== undefined ? data.centreId : before.centre_id);
-    if (role === "campus_pastor" && !centreId) { res.status(400).json({ error: "Choose the centre this pastor looks after.", errors: { centreId: "Choose the centre this pastor looks after." } }); return null; }
+    const centreId = !needsCentre(role) ? null : (data.centreId !== undefined ? data.centreId : before.centre_id);
+    if (needsCentre(role) && !centreId) { res.status(400).json({ error: CENTRE_NEEDED, errors: { centreId: CENTRE_NEEDED } }); return null; }
     if (before.id === req.user.id && (role !== "regional_admin" || data.isActive === false)) { res.status(400).json({ error: "You can’t remove your own admin access or deactivate yourself." }); return null; }
     const isActive = data.isActive ?? before.is_active;
     if (before.role === "regional_admin" && (role !== "regional_admin" || !isActive)) {

@@ -2,8 +2,12 @@
 
 A web app for Deeper Life Campus Fellowship, Ondo Region. It keeps member records for the fellowship centres, gives each pastor their own sign-in, and records every action in a tamper-evident audit log.
 
-- **Regional admin:** sees every centre, manages user accounts and reviews the audit log.
-- **Campus pastors:** see and manage members of their own centre only. The server enforces this, so it holds even if someone edits the page in their browser.
+- **Regional admin:** sees every centre, manages user accounts and fellowship centres, and reviews the audit log.
+- **Campus pastors:** see and manage members of their own fellowship centre only.
+- **Centre sisters’ coordinators:** see and manage the female members of their own fellowship centre only.
+- **Regional sisters’ coordinators:** see and manage the female members of every centre in the region.
+
+The server enforces these limits on every list, record, report and approval, so they hold even if someone edits the page in their browser.
 
 ## How it's built
 

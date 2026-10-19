@@ -3,6 +3,7 @@
 // entry's contents plus the previous entry's hash. The database rejects UPDATE/DELETE/TRUNCATE on audit_log.
 const crypto = require("crypto");
 const { tx, pool } = require("./db");
+const { roleOf } = require("../public/roles.js");
 
 const GENESIS = "GENESIS";
 const COLUMNS = ["seq", "ts", "user_id", "actor_email", "actor_name", "actor_role", "actor_centre", "ip", "user_agent", "action", "target_type", "target_id", "target_label", "details", "prev_hash"];
@@ -31,7 +32,7 @@ async function record(client, ctx, action, { target = null, details = {}, actor 
     user_id: user?.id ?? null,
     actor_email: user?.email ?? null,
     actor_name: user?.fullName ?? null,
-    actor_role: user ? (user.role === "regional_admin" ? "Regional admin" : "Campus pastor") : null,
+    actor_role: user ? roleOf(user).label : null,
     actor_centre: user?.centreName ?? null,
     ip: ctx.ip ?? null,
     user_agent: ctx.userAgent ?? null,

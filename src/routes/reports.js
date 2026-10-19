@@ -6,7 +6,8 @@ const { FIELDS, groupLabel, todayISO } = require("../../public/member-schema.js"
 const { sendCsv } = require("../csv");
 
 const router = express.Router();
-const scope = (req) => req.user.role === "regional_admin" ? { where: "TRUE", params: [] } : { where: "centre_id = $1", params: [req.user.centreId] };
+const { scopeWhere, visibleCentres } = require("../scope");
+const scope = (req) => { const params = []; return { where: scopeWhere(req.user, params), params }; };
 
 router.get("/members.csv", async (req, res) => {
   const { where, params } = scope(req);
@@ -23,7 +24,7 @@ router.get("/members.csv", async (req, res) => {
 
 router.get("/monthly.csv", async (req, res) => {
   const { where, params } = scope(req);
-  const list = (await centres()).filter((c) => req.user.role === "regional_admin" || c.id === req.user.centreId);
+  const list = visibleCentres(req.user, await centres());
   const months = recentMonths(12);
   const { rows } = await query(
     `SELECT DATE_FORMAT(date_joined, '%Y-%m') AS month, centre_id, count(*) AS joined FROM members

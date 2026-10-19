@@ -3,16 +3,12 @@ const { query, tx } = require("../db");
 const audit = require("../audit");
 const { centres, formOptions, fromRow, toColumns, diff, snapshot, target, clean, recentMonths, memberRow } = require("../members");
 const { phoneDigits } = require("../../public/member-schema.js");
+const { scopeWhere, outOfScope, visibleCentres, roleOf } = require("../scope");
 
 const router = express.Router();
-const isAdmin = (req) => req.user.role === "regional_admin";
-
-// Campus pastors are always limited to their own centre, whatever the request asks for.
-function scopeClause(req, params, requestedCentre) {
-  if (!isAdmin(req)) { params.push(req.user.centreId); return `centre_id = $${params.length}`; }
-  if (requestedCentre) { params.push(requestedCentre); return `centre_id = $${params.length}`; }
-  return "TRUE";
-}
+// Users are always limited to their scope (own centre unless regional; female only for sisters' coordinators),
+// whatever the request asks for.
+const scopeClause = (req, params, requestedCentre = null) => scopeWhere(req.user, params, requestedCentre);
 
 async function denied(req, reason, resource) {
   await audit.log(audit.contextFrom(req), "access.denied", { details: { resource, reason } });
@@ -24,8 +20,9 @@ async function loadMember(req, res, client = null, lock = false) {
   if (!Number.isSafeInteger(id) || id < 1) { res.status(404).json({ error: "Member not found." }); return null; }
   const run = client ? client.query.bind(client) : query;
   const { rows: [row] } = await run(`SELECT * FROM members WHERE id = $1 AND deleted_at IS NULL${lock ? " FOR UPDATE" : ""}`, [id]);
-  if (row && !isAdmin(req) && row.centre_id !== req.user.centreId) {
-    await denied(req, `campus pastors can only open members of their own centre (member #${id})`, `member #${id}`);
+  const reason = row && outOfScope(req.user, { centreId: row.centre_id, gender: row.gender });
+  if (reason) {
+    await denied(req, `${reason} (member #${id})`, `member #${id}`);
     res.status(404).json({ error: "Member not found." });
     return null;
   }
@@ -53,7 +50,7 @@ router.get("/", async (req, res) => {
   const total = count.total;
   const ctx = audit.contextFrom(req);
   if (q && offset === 0) await audit.log(ctx, "directory.search", { details: { query: q, results: total } });
-  if (centreId && isAdmin(req) && offset === 0 && req.query.logFilter === "1") await audit.log(ctx, "directory.filter", { details: { centre: list.find((c) => c.id === centreId)?.name || `centre ${centreId}` } });
+  if (centreId && roleOf(req.user).regional && offset === 0 && req.query.logFilter === "1") await audit.log(ctx, "directory.filter", { details: { centre: list.find((c) => c.id === centreId)?.name || `centre ${centreId}` } });
   res.json({ items: rows.map((row) => fromRow(row, list)), total });
 });
 
@@ -66,7 +63,7 @@ router.get("/stats", async (req, res) => {
   // Running total of members at the end of each of the last six months.
   const { rows: joined } = await query(`SELECT DATE_FORMAT(date_joined, '%Y-%m') AS month, count(*) AS n FROM members WHERE ${where} GROUP BY month`, params);
   const monthly = recentMonths(6).map((month) => ({ month, total: joined.filter((r) => r.month <= month).reduce((sum, r) => sum + r.n, 0) }));
-  const list = (await centres()).filter((c) => isAdmin(req) || c.id === req.user.centreId);
+  const list = visibleCentres(req.user, await centres());
   const centreStats = list.map((c) => { const row = byCentre.find((r) => r.centre_id === c.id) || { total: 0, staff: 0, corps: 0 }; return { ...c, total: row.total, staff: row.staff, corps: row.corps }; });
   const sum = (key) => centreStats.reduce((n, c) => n + c[key], 0);
   const total = sum("total"), staff = sum("staff"), corps = sum("corps");
@@ -94,7 +91,7 @@ router.post("/duplicates", async (req, res) => {
     const reasons = [];
     if (phone && phoneDigits(m.phone).replace(/^\+?234/, "0") === phone) reasons.push("phone number");
     if (email && m.email.toLowerCase() === email) reasons.push("email");
-    const visible = isAdmin(req) || m.centreId === req.user.centreId;
+    const visible = !outOfScope(req.user, m);
     return { name: visible ? m.name : "A member", centre: m.centre, reasons };
   }) });
 });
@@ -142,11 +139,13 @@ router.get("/:id/history", async (req, res) => {
 
 async function cleanFor(req, res, body) {
   const list = await centres();
-  const allowed = isAdmin(req) ? list : list.filter((c) => c.id === req.user.centreId);
-  const { data, errors } = clean(body, formOptions(allowed));
+  const role = roleOf(req.user);
+  const { data, errors } = clean(body, formOptions(visibleCentres(req.user, list)));
+  if (role.femaleOnly && data.gender && data.gender !== "Female") errors.gender = "Sisters’ coordinators can only add or edit female members.";
   if (Object.keys(errors).length) {
     const elsewhere = list.some((c) => c.institution === body?.institution && c.name === body?.centre);
-    if ((errors.institution || errors.centre) && !isAdmin(req) && elsewhere) await denied(req, "campus pastors can only add members to their own centre", "members");
+    if ((errors.institution || errors.centre) && !role.regional && elsewhere) await denied(req, `${role.label.toLowerCase()}s can only add members to their own centre`, "members");
+    if (role.femaleOnly && data.gender === "Male") await denied(req, "sisters’ coordinators can only add or edit female members", "members");
     res.status(400).json({ error: "Some details need attention.", errors });
     return null;
   }
@@ -168,9 +167,10 @@ router.post("/", async (req, res) => {
 });
 
 router.put("/:id", async (req, res) => {
-  const cleaned = await cleanFor(req, res, req.body); if (!cleaned) return;
   const result = await tx(async (client) => {
+    // Check access to this member before looking at the submitted details.
     const before = await loadMember(req, res, client, true); if (!before) return null;
+    const cleaned = await cleanFor(req, res, req.body); if (!cleaned) return null;
     // Optimistic concurrency: refuse to overwrite someone else's newer save.
     if (req.body.updatedAt && req.body.updatedAt !== before.updatedAt) {
       res.status(409).json({ error: "Someone else updated this member while you were editing. Reload to see their changes.", code: "CONFLICT" });

@@ -13,8 +13,11 @@ const esc = (value) => String(value ?? "").replace(/[&<>"']/g, (c) => ({"&":"&am
 const formatTime = (iso) => new Date(iso).toLocaleString("en-GB", {day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit"});
 
 const state = {user: null, centres: [], stats: null, view: "Overview", centreFilter: "", membersShown: PAGE, auditShown: PAGE, openMember: null, idleMinutes: 30, lastActivity: Date.now()};
+const R = window.Roles;
 const isAdmin = () => state.user?.role === "regional_admin";
-const allowedCentres = () => isAdmin() ? state.centres : state.centres.filter((c) => c.id === state.user.centreId);
+const isRegional = () => R.roleOf(state.user).regional;   // sees every centre
+const femaleOnly = () => R.roleOf(state.user).femaleOnly; // sisters' coordinators
+const allowedCentres = () => isRegional() ? state.centres : state.centres.filter((c) => c.id === state.user.centreId);
 // What the member form may offer this user: institutions, and the centres under each.
 function formCtx() {
   const ctx = {institutions: [], centres: {}, kinds: {}};
@@ -106,13 +109,15 @@ function startApp(user, centres, session) {
   const initials = user.fullName.split(/\s+/).map((p) => p[0]).slice(0, 2).join("").toUpperCase();
   $("#profileInitials").textContent = initials; $("#topInitials").textContent = initials;
   $("#profileName").textContent = user.fullName;
-  $("#profileScope").textContent = isAdmin() ? "Regional admin · All centres" : `Campus pastor · ${user.centreName}`;
-  $("#userChip").textContent = isAdmin() ? "Regional admin" : user.centreName;
+  const role = R.roleOf(user), where = role.regional ? "All centres" : user.centreName;
+  $("#profileScope").textContent = `${role.label} · ${where}`;
+  $("#userChip").textContent = role.regional ? role.label : user.centreName;
   $$(".admin-only").forEach((node) => { node.hidden = !isAdmin(); });
+  $$(".regional-only").forEach((node) => { node.hidden = !role.regional; });
   $("#scopeBanner").hidden = isAdmin();
-  $("#scopeText").innerHTML = `<strong>${esc(user.centreName)}</strong> · You can see and add members of this centre only.`;
+  $("#scopeText").innerHTML = `<strong>${esc(where)}</strong> · You can see and add ${role.femaleOnly ? "female members" : "members"}${role.regional ? " in every centre" : " of this centre only"}.`;
   $("#schoolFilter").innerHTML = centreOptions("All centres");
-  $("#centresLabel").textContent = isAdmin() ? "YOUR CENTRES" : "YOUR CENTRE";
+  $("#centresLabel").textContent = role.regional ? "YOUR CENTRES" : "YOUR CENTRE";
   // Nothing from a previous user's session (searches, filters, open records) carries over.
   ["#searchBox", "#auditSearch", "#auditCategory", "#auditActor", "#auditFrom", "#auditTo"].forEach((s) => { $(s).value = ""; });
   $("#auditIntegrity").innerHTML = "";
@@ -143,7 +148,7 @@ async function loadStats() {
   $("#centreCount").textContent = fmt(stats.centres.length);
   $("#pendingCount").textContent = fmt(stats.pending); $("#pendingCount").hidden = !stats.pending;
   $("#navCount").textContent = stats.total >= 1000 ? `${(stats.total / 1000).toFixed(1)}k` : fmt(stats.total);
-  $("#totalScope").textContent = isAdmin() ? "Across your fellowship" : `At ${state.user.centreName}`;
+  $("#totalScope").textContent = `${femaleOnly() ? "Female members " : ""}${isRegional() ? "across your fellowship" : `at ${state.user.centreName}`}`.replace(/^./, (c) => c.toUpperCase());
   $("#sidebarCentres").innerHTML = stats.centres.map((c) => `<button class="centre-link" data-centre="${c.id}"><i class="centre-dot ${dotFor(c)}"></i><span>${esc(c.name)}</span><small>${fmt(c.total)}</small></button>`).join("");
   $("#centreList").innerHTML = stats.centres.map((c) => `<button class="centre-row" data-centre="${c.id}"><i class="centre-dot ${dotFor(c)}"></i><span class="centre-row-copy"><strong>${esc(c.name)}</strong><small>${esc(c.institution)}</small><span class="mini-bar"><i class="${dotFor(c)}" style="width:${pct(c.total, stats.total)}%"></i></span></span><span class="centre-total"><strong>${fmt(c.total)}</strong><small>${pct(c.total, stats.total)}%</small></span><b class="row-chevron">›</b></button>`).join("");
   renderCentresView();
@@ -177,7 +182,7 @@ async function loadMembers({logFilter = false} = {}) {
   const params = new URLSearchParams({limit: String(state.membersShown)});
   const q = $("#searchBox").value.trim();
   if (q) params.set("q", q);
-  if (isAdmin() && state.centreFilter) params.set("centreId", state.centreFilter);
+  if (isRegional() && state.centreFilter) params.set("centreId", state.centreFilter);
   if (logFilter) params.set("logFilter", "1");
   const {items, total} = await api(`/api/members?${params}`);
   if (ticket !== memberRequest) return; // a newer search has started
@@ -191,13 +196,13 @@ async function loadMembers({logFilter = false} = {}) {
   $("#resultCount").textContent = fmt(total);
   $("#membersMore").hidden = items.length >= total;
   const centre = state.centres.find((c) => String(c.id) === String(state.centreFilter));
-  $("#directoryTitle").textContent = !isAdmin() ? `${state.user.centreName} members` : centre ? `${centre.name} members` : "All members";
+  $("#directoryTitle").textContent = !isRegional() ? `${state.user.centreName} members` : centre ? `${centre.name} members` : "All members";
 }
 function openCentre(id) {
-  state.centreFilter = isAdmin() ? String(id) : "";
+  state.centreFilter = isRegional() ? String(id) : "";
   $("#schoolFilter").value = state.centreFilter;
   state.membersShown = PAGE;
-  showView("Members", {logFilter: isAdmin()});
+  showView("Members", {logFilter: isRegional()});
 }
 
 // ---- Views ------------------------------------------------------------------------
@@ -209,7 +214,7 @@ const showView = guard(async (view, {logFilter = false} = {}) => {
   state.view = view;
   $("#crumb").textContent = view;
   $("#pageTitle").textContent = view === "Overview" ? `${greeting()}, ${state.user.fullName.split(" ")[0]}` : view;
-  const subtitles = {"Overview": isAdmin() ? "Here’s what’s happening across your fellowship centres." : `Here’s what’s happening at ${state.user.centreName}.`, "Members": "Browse member information within your authorised access.", "Registrations": isAdmin() ? "Approve people who registered online for any fellowship centre." : `Approve people who registered online for ${state.user.centreName}.`, "Fellowship centres": "Your fellowship centres and their membership.", "Reports": "Download membership reports as CSV files.", "Users": "Manage who can sign in and what they can see.", "Audit log": "A tamper-evident record of every action taken on this system."};
+  const subtitles = {"Overview": isRegional() ? "Here’s what’s happening across your fellowship centres." : `Here’s what’s happening at ${state.user.centreName}.`, "Members": "Browse member information within your authorised access.", "Registrations": isRegional() ? "Approve people who registered online for any fellowship centre." : `Approve people who registered online for ${state.user.centreName}.`, "Fellowship centres": "Your fellowship centres and their membership.", "Reports": "Download membership reports as CSV files.", "Users": "Manage who can sign in and what they can see.", "Audit log": "A tamper-evident record of every action taken on this system."};
   $("#subtitle").textContent = subtitles[view];
   Object.entries(VIEWS).forEach(([name, selector]) => { $(selector).hidden = name !== view; });
   $(".heading-actions").hidden = view === "Users" || view === "Audit log";
@@ -330,6 +335,11 @@ function updateRoleChoices(form, ctx) {
 function applyConditions() {
   refreshCentreOptions();
   updateRoleChoices($("#memberForm"), formCtx());
+  if (femaleOnly()) {
+    const form = $("#memberForm");
+    form.querySelector('[name="gender"][value="Male"]').closest("label").hidden = true;
+    form.querySelector('[name="gender"][value="Female"]').checked = true;
+  }
   const data = readForm();
   FIELDS.forEach((f) => { if (f.when) $(`[data-field="${f.key}"]`).hidden = !S.fieldShown(f, data); });
   ["kinName", "kinPhone"].forEach((key) => { $(`#f-${key}`).readOnly = data.kinSameAsParent; });
@@ -583,7 +593,7 @@ const centreAction = guard(async (event) => {
 });
 
 // ---- Users (regional admin) ---------------------------------------------------------------
-const ROLE_LABELS = {regional_admin: "Regional admin", campus_pastor: "Campus pastor"};
+const ROLE_LABELS = Object.fromEntries(Object.entries(R.ROLES).map(([key, info]) => [key, info.label]));
 let users = [];
 let editingUser = null;
 async function loadUsers() {
@@ -602,6 +612,7 @@ function openUserForm(user = null) {
   $("#userFormTitle").textContent = user ? user.fullName : "Add a user";
   $("#userSave").textContent = user ? "Save changes" : "Create account";
   $("#u-centreId").innerHTML = centreOptions("Select a fellowship centre");
+  $("#u-roles").innerHTML = Object.entries(R.ROLES).map(([key, info]) => `<label class="choice"><input type="radio" name="role" value="${key}"><span>${esc(info.label)}</span></label>`).join("");
   form.elements.fullName.value = user?.fullName || "";
   form.elements.email.value = user?.email || "";
   form.elements.email.disabled = !!user;
@@ -616,13 +627,13 @@ function openUserForm(user = null) {
 }
 function updateUserRole() {
   const role = $("#userForm").elements.role.value;
-  $('[data-field="centreId"]').hidden = role !== "campus_pastor";
-  $("#roleHelp").textContent = role === "campus_pastor" ? "Can view, add and edit members of one fellowship centre." : "Full access to every centre, user accounts and the audit log.";
+  $('[data-field="centreId"]').hidden = !R.needsCentre(role);
+  $("#roleHelp").textContent = R.ROLES[role]?.help || "";
 }
 const saveUser = guard(async (event) => {
   event.preventDefault();
   const form = $("#userForm");
-  const body = {fullName: form.elements.fullName.value.trim(), role: form.elements.role.value, centreId: form.elements.role.value === "campus_pastor" ? Number(form.elements.centreId.value) || null : null};
+  const body = {fullName: form.elements.fullName.value.trim(), role: form.elements.role.value, centreId: R.needsCentre(form.elements.role.value) ? Number(form.elements.centreId.value) || null : null};
   if (!editingUser) body.email = form.elements.email.value.trim();
   ["fullName", "email", "role", "centreId"].forEach((k) => setError(`#ue-${k}`, ""));
   try {

@@ -329,6 +329,78 @@ describe("corpers fellowship", () => {
   });
 });
 
+describe("sisters' coordinators", () => {
+  let centreSister, regionalSister, brotherId, sisterId, otherSisterId;
+  const adeyemi = { institution: "Adeyemi Federal University of Education", centre: "Adeyemi Centre" };
+  before(async () => {
+    const created = await admin.post("/api/users").send({ fullName: "Adeyemi Sisters", email: "sisters-adeyemi@dlcf.test", role: "centre_sister", centreId: 1 });
+    assert.equal(created.status, 201, JSON.stringify(created.body));
+    assert.equal((await admin.post("/api/users").send({ fullName: "No Centre", email: "nocentre@dlcf.test", role: "centre_sister" })).body.errors.centreId, "Choose the fellowship centre this person looks after.");
+    const regional = await admin.post("/api/users").send({ fullName: "Region Sisters", email: "sisters-region@dlcf.test", role: "regional_sister", centreId: 2 });
+    assert.equal(regional.body.user.centreId, null);
+    await h.pool.query("UPDATE users SET must_change_password = FALSE, password_hash = $1 WHERE email IN ('sisters-adeyemi@dlcf.test', 'sisters-region@dlcf.test')", [(await h.pool.query("SELECT password_hash FROM users WHERE email = 'admin@dlcf.test'")).rows[0].password_hash]);
+    centreSister = await h.signedIn("sisters-adeyemi@dlcf.test");
+    regionalSister = await h.signedIn("sisters-region@dlcf.test");
+    brotherId = (await admin.post("/api/members").send(h.validMember({ ...adeyemi, gender: "Male", firstName: "Brother", phone: "08011110001" }))).body.id;
+    sisterId = (await admin.post("/api/members").send(h.validMember({ ...adeyemi, firstName: "Sister", phone: "08011110002" }))).body.id;
+    otherSisterId = (await admin.post("/api/members").send(h.validMember({ firstName: "Unimedsister", phone: "08011110003" }))).body.id;
+  });
+  test("a centre sisters' coordinator sees only female members of her centre", async () => {
+    const items = (await centreSister.get("/api/members?limit=200")).body.items;
+    assert.ok(items.some((m) => m.id === sisterId));
+    assert.ok(items.every((m) => m.gender === "Female" && m.centre === "Adeyemi Centre"));
+    const stats = (await centreSister.get("/api/members/stats")).body;
+    assert.equal(stats.total, items.length);
+    assert.deepEqual(stats.centres.map((c) => c.name), ["Adeyemi Centre"]);
+  });
+  test("a regional sisters' coordinator sees female members of every centre", async () => {
+    const items = (await regionalSister.get("/api/members?limit=200")).body.items;
+    assert.ok(items.some((m) => m.id === sisterId) && items.some((m) => m.id === otherSisterId));
+    assert.ok(items.every((m) => m.gender === "Female"));
+    assert.ok((await regionalSister.get("/api/members?centreId=1")).body.items.every((m) => m.centre === "Adeyemi Centre"));
+    assert.ok((await regionalSister.get("/api/members/stats")).body.centres.length > 1);
+  });
+  test("opening a male member is refused and audited", async () => {
+    assert.equal((await centreSister.get(`/api/members/${brotherId}`)).status, 404);
+    const entry = await h.lastAudit();
+    assert.equal(entry.action, "access.denied");
+    assert.equal(entry.actor_role, "Centre sisters’ coordinator");
+    assert.equal((await regionalSister.get(`/api/members/${brotherId}`)).status, 404);
+    assert.equal((await regionalSister.put(`/api/members/${brotherId}`).send(h.validMember({ ...adeyemi, gender: "Male" }))).status, 404);
+  });
+  test("they can add and edit female members only", async () => {
+    const male = await centreSister.post("/api/members").send(h.validMember({ ...adeyemi, gender: "Male", phone: "08011110004" }));
+    assert.equal(male.status, 400);
+    assert.ok(male.body.errors.gender);
+    assert.equal((await h.lastAudit()).action, "access.denied");
+    const female = await centreSister.post("/api/members").send(h.validMember({ ...adeyemi, firstName: "Added", phone: "08011110005" }));
+    assert.equal(female.status, 201);
+    assert.ok((await centreSister.post("/api/members").send(h.validMember({ phone: "08011110006" }))).body.errors.centre, "not another centre");
+    const member = (await centreSister.get(`/api/members/${sisterId}`)).body;
+    assert.ok((await centreSister.put(`/api/members/${sisterId}`).send({ ...member, gender: "Male" })).body.errors.gender);
+  });
+  test("they approve female registrations only", async () => {
+    const visitor = h.client();
+    await visitor.post("/api/public/register").send({ ...h.validMember({ ...adeyemi, gender: "Male", firstName: "Regbrother", phone: "08011110007" }), consent: true });
+    const brother = Number((await h.lastAudit()).target_id);
+    await visitor.post("/api/public/register").send({ ...h.validMember({ ...adeyemi, firstName: "Regsister", phone: "08011110008" }), consent: true });
+    const sister = Number((await h.lastAudit()).target_id);
+    const pending = (await centreSister.get("/api/members/pending")).body.items.map((m) => m.id);
+    assert.ok(pending.includes(sister) && !pending.includes(brother));
+    assert.equal((await centreSister.post(`/api/members/${brother}/approve`)).status, 404);
+    assert.equal((await centreSister.post(`/api/members/${sister}/approve`)).status, 200);
+    assert.ok((await adeyemiPastor.get("/api/members/pending")).body.items.some((m) => m.id === brother), "the pastor still sees the brother");
+  });
+  test("reports contain female members only", async () => {
+    const csv = (await regionalSister.get("/api/reports/members.csv")).text;
+    assert.match(csv, /Unimedsister/);
+    assert.doesNotMatch(csv, /Brother/);
+  });
+  test("they can't manage users, centres or the audit log", async () => {
+    for (const path of ["/api/users", "/api/audit", "/api/centres"]) assert.equal((await regionalSister.get(path)).status, 403, path);
+  });
+});
+
 describe("public registration and approval", () => {
   const visitor = () => h.client();
   const registration = (overrides = {}) => ({ ...h.validMember({ institution: "Adeyemi Federal University of Education", centre: "Adeyemi Centre", firstName: "Femi", surname: "Ojo", phone: "08070000001" }), consent: true, ...overrides });
