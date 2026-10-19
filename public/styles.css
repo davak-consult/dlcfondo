@@ -87,3 +87,7 @@
   .audit-table tr.audit-detail[hidden]{display:none}
   .audit-table tr.audit-detail td{display:block}
 }
+
+/* Corpers Fellowship */
+.centre-dot.teal,.mini-bar i.teal{background:#2f8f83}
+.type-corps{background:#e7f4f1;color:#2b7a6f}

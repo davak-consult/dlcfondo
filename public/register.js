@@ -13,7 +13,7 @@ function fieldHtml(f) {
   if (f.group) return `<div class="field-group field-wide"><h4>${esc(f.group)}</h4>${f.help ? `<p>${esc(f.help)}</p>` : ""}</div>`;
   const id = `f-${f.key}`, req = f.required ? ` <span class="req" aria-hidden="true">*</span>` : "";
   const common = `id="${id}" name="${f.key}" aria-describedby="${f.help ? `h-${f.key} ` : ""}e-${f.key}"${f.required ? ` aria-required="true"` : ""}${f.autocomplete ? ` autocomplete="${f.autocomplete}"` : ""}`;
-  const options = S.optionsOf(f, ctx);
+  const options = f.options === "roles" ? S.ROLES : S.optionsOf(f, ctx);
   const text = f.publicLabel || f.label;
   let label = `<label for="${id}">${esc(text)}${req}</label>`, control;
   if (f.type === "choice") {
@@ -42,7 +42,18 @@ function refreshCentres() {
   select.innerHTML = `<option value="">${names.length ? "Select a fellowship centre" : "Choose your institution first"}</option>${names.map((n) => `<option>${esc(n)}</option>`).join("")}`;
   select.value = names.includes(keep) ? keep : names.length === 1 ? names[0] : "";
 }
+// Shows only the member types that suit the chosen institution (e.g. Corpers Fellowship → Corps member).
+function updateRoleChoices(form, ctx) {
+  const allowed = S.optionsOf(S.FIELDS.find((f) => f.key === "role"), ctx, {institution: form.elements.institution.value});
+  form.querySelectorAll('[name="role"]').forEach((input) => {
+    const ok = allowed.includes(input.value);
+    input.closest("label").hidden = !ok;
+    if (!ok && input.checked) input.checked = false;
+  });
+  if (allowed.length === 1) form.querySelector(`[name="role"][value="${allowed[0]}"]`).checked = true;
+}
 function applyConditions() {
+  updateRoleChoices($("#registerForm"), ctx);
   const data = readForm();
   FIELDS.forEach((f) => { if (f.when) $(`[data-field="${f.key}"]`).hidden = !S.fieldShown(f, data); });
   const form = $("#registerForm"), same = form.elements.kinSameAsParent.checked;

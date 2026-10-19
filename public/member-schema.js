@@ -22,7 +22,11 @@
   const validYear = (v) => /^\d{4}$/.test(v) && +v >= 1970 && +v <= new Date().getFullYear() ? "" : `Enter a year between 1970 and ${new Date().getFullYear()}.`;
   const formatPhone = (v) => { if (!v || validPhone(v)) return v; const local = phoneDigits(v).replace(/^\+?234/, "0"); return `${local.slice(0, 4)} ${local.slice(4, 7)} ${local.slice(7)}`; };
   // "*" in a condition means "any answer given", e.g. academic details appear once an institution is chosen.
-  const chosen = {institution: "*"}, student = {role: "Student", ...chosen}, staff = {role: "Staff", ...chosen}, worker = {isWorker: "Yes"};
+  const chosen = {institution: "*"}, student = {role: "Student", ...chosen}, staff = {role: "Staff", ...chosen}, corper = {role: "Corps member", ...chosen}, worker = {isWorker: "Yes"};
+  // Member types offered for each kind of institution (campus institutions, or the Corpers Fellowship).
+  const ROLES = ["Student", "Staff", "Corps member"];
+  const ROLES_BY_KIND = {campus: ["Student", "Staff"], corpers: ["Corps member"]};
+  const validStateCode = (v) => /^[A-Z]{2}\/\d{2}[A-Z]\/\d{3,6}$/i.test(v) ? "" : "Enter the state code as on your NYSC call-up, e.g. OD/25B/1234.";
 
   const STEPS = [
     {id: "personal", title: "Personal", heading: "Personal details", intro: "Who is this member and how can we reach them?", fields: [
@@ -38,10 +42,10 @@
       {key: "email", label: "Email address", type: "email", validate: validEmail, autocomplete: "email", wide: true},
       {key: "homeAddress", label: "Home address", required: true, help: "Permanent or family home address", wide: true, autocomplete: "street-address", maxLength: 300}
     ]},
-    {id: "campus", title: "Campus", heading: "Campus details", intro: "Where this member studies or works.", fields: [
-      {key: "role", label: "Member type", type: "choice", options: ["Student", "Staff"], required: true, wide: true},
-      {key: "institution", label: "Institution", type: "select", options: "institutions", required: true, wide: true},
+    {id: "campus", title: "Campus", heading: "Campus details", intro: "Where this member studies, works or serves.", fields: [
+      {key: "institution", label: "Institution / fellowship", type: "select", options: "institutions", required: true, wide: true, placeholder: "Select…", help: "Corps members choose Corpers Fellowship"},
       {key: "centre", label: "Fellowship centre", type: "select", options: "centres", required: true, wide: true, placeholder: "Select a fellowship centre", help: "The centre under this institution that the member attends", when: chosen},
+      {key: "role", label: "Member type", type: "choice", options: "roles", required: true, wide: true, when: chosen},
       {key: "faculty", label: "Faculty / school", required: true, when: student, help: "e.g. Faculty of Science"},
       {key: "department", label: "Department", required: true, when: student},
       {key: "level", label: "Current level", type: "select", options: LEVELS, required: true, when: student, placeholder: "Select level"},
@@ -50,7 +54,10 @@
       {key: "residence", label: "Hostel / campus address", required: true, wide: true, when: student, help: "Where they can be visited during the semester", maxLength: 300},
       {key: "staffCategory", label: "Staff category", type: "choice", options: ["Academic", "Non-academic"], required: true, when: staff, wide: true},
       {key: "staffDepartment", label: "Department / unit", required: true, when: staff},
-      {key: "position", label: "Position / designation", required: true, when: staff, help: "e.g. Lecturer II, Bursary officer"}
+      {key: "position", label: "Position / designation", required: true, when: staff, help: "e.g. Lecturer II, Bursary officer"},
+      {key: "stateCode", label: "NYSC state code", required: true, when: corper, validate: validStateCode, maxLength: 20, placeholder: "e.g. OD/25B/1234"},
+      {key: "ppa", label: "Place of primary assignment (PPA)", required: true, when: corper, help: "Where the corps member serves, e.g. St. Peter’s Grammar School, Akure"},
+      {key: "lodgeAddress", label: "Lodge / residential address", required: true, wide: true, when: corper, maxLength: 300, help: "Where they can be visited during the service year"}
     ]},
     {id: "fellowship", title: "Fellowship", heading: "Fellowship details", intro: "Their walk with the fellowship so far.", fields: [
       {key: "status", label: "Membership status", type: "select", options: STATUSES, required: true, staffOnly: true},
@@ -83,6 +90,7 @@
   function optionsOf(f, ctx = {}, data = {}) {
     if (f.options === "institutions") return ctx.institutions || [];
     if (f.options === "centres") return (ctx.centres || {})[data.institution] || [];
+    if (f.options === "roles") return ROLES_BY_KIND[(ctx.kinds || {})[data.institution] || "campus"];
     return f.options || [];
   }
   function groupLabel(f) {
@@ -116,5 +124,5 @@
     FIELDS.forEach((f) => { const message = fieldError(f, data, ctx); if (message) errors[f.key] = message; });
     return {data, errors};
   }
-  return {STEPS, FIELDS, STATES, LEVELS, UNITS, STATUSES, todayISO, phoneDigits, validPhone, formatPhone, fieldShown, optionsOf, groupLabel, fieldError, clean};
+  return {STEPS, FIELDS, ROLES, STATES, LEVELS, UNITS, STATUSES, todayISO, phoneDigits, validPhone, formatPhone, fieldShown, optionsOf, groupLabel, fieldError, clean};
 });

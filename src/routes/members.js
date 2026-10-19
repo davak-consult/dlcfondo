@@ -40,7 +40,7 @@ router.get("/", async (req, res) => {
   const q = String(req.query.q || "").trim().slice(0, 100);
   if (q) {
     params.push(`%${q.replace(/[\\%_]/g, (c) => `\\${c}`)}%`);
-    where.push(`concat_ws(' ', first_name, other_names, surname, programme, position, department, staff_department, phone, email) LIKE $${params.length}`);
+    where.push(`concat_ws(' ', first_name, other_names, surname, programme, position, department, staff_department, state_code, ppa, phone, email) LIKE $${params.length}`);
   }
   const limit = Math.min(Math.max(Number(req.query.limit) || 50, 1), 200);
   const offset = Math.max(Number(req.query.offset) || 0, 0);
@@ -62,14 +62,15 @@ router.get("/stats", async (req, res) => {
   const scope = scopeClause(req, params);
   const where = `deleted_at IS NULL AND approval = 'approved' AND ${scope}`;
   const { rows: [{ pending }] } = await query(`SELECT count(*) AS pending FROM members WHERE deleted_at IS NULL AND approval = 'pending' AND ${scope}`, params);
-  const { rows: byCentre } = await query(`SELECT centre_id, count(*) AS total, CAST(SUM(role = 'Staff') AS SIGNED) AS staff FROM members WHERE ${where} GROUP BY centre_id`, params);
+  const { rows: byCentre } = await query(`SELECT centre_id, count(*) AS total, CAST(SUM(role = 'Staff') AS SIGNED) AS staff, CAST(SUM(role = 'Corps member') AS SIGNED) AS corps FROM members WHERE ${where} GROUP BY centre_id`, params);
   // Running total of members at the end of each of the last six months.
   const { rows: joined } = await query(`SELECT DATE_FORMAT(date_joined, '%Y-%m') AS month, count(*) AS n FROM members WHERE ${where} GROUP BY month`, params);
   const monthly = recentMonths(6).map((month) => ({ month, total: joined.filter((r) => r.month <= month).reduce((sum, r) => sum + r.n, 0) }));
   const list = (await centres()).filter((c) => isAdmin(req) || c.id === req.user.centreId);
-  const centreStats = list.map((c) => { const row = byCentre.find((r) => r.centre_id === c.id) || { total: 0, staff: 0 }; return { ...c, total: row.total, staff: row.staff }; });
-  const total = centreStats.reduce((sum, c) => sum + c.total, 0), staff = centreStats.reduce((sum, c) => sum + c.staff, 0);
-  res.json({ total, staff, students: total - staff, pending, centres: centreStats, monthly });
+  const centreStats = list.map((c) => { const row = byCentre.find((r) => r.centre_id === c.id) || { total: 0, staff: 0, corps: 0 }; return { ...c, total: row.total, staff: row.staff, corps: row.corps }; });
+  const sum = (key) => centreStats.reduce((n, c) => n + c[key], 0);
+  const total = sum("total"), staff = sum("staff"), corps = sum("corps");
+  res.json({ total, staff, corps, students: total - staff - corps, pending, centres: centreStats, monthly });
 });
 
 // The stored phone number without spaces, dashes, brackets or dots, and with +234/234 written as 0 (as phoneDigits does).

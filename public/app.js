@@ -3,7 +3,8 @@ const {STEPS, FIELDS} = S;
 const REVIEW = STEPS.length - 1;
 const PAGE = 50;
 const tones = ["sage", "lilac", "peach", "butter", "blue", "rose"];
-const CENTRE_DOTS = {adeyemi: "green", unimed: "violet", wesley: "amber"};
+const CENTRE_DOTS = {adeyemi: "green", unimed: "violet", wesley: "amber", corpers: "teal"};
+const TYPE_BADGES = {Student: ["type-student", "♙ Student"], Staff: ["type-staff", "▤ Staff"], "Corps member": ["type-corps", "✦ Corps member"]};
 const $ = (selector) => document.querySelector(selector);
 const $$ = (selector) => [...document.querySelectorAll(selector)];
 const fmt = (n) => Number(n || 0).toLocaleString("en-NG");
@@ -16,8 +17,8 @@ const isAdmin = () => state.user?.role === "regional_admin";
 const allowedCentres = () => isAdmin() ? state.centres : state.centres.filter((c) => c.id === state.user.centreId);
 // What the member form may offer this user: institutions, and the centres under each.
 function formCtx() {
-  const ctx = {institutions: [], centres: {}};
-  allowedCentres().forEach((c) => { if (!ctx.centres[c.institution]) { ctx.institutions.push(c.institution); ctx.centres[c.institution] = []; } ctx.centres[c.institution].push(c.name); });
+  const ctx = {institutions: [], centres: {}, kinds: {}};
+  allowedCentres().forEach((c) => { if (!ctx.centres[c.institution]) { ctx.institutions.push(c.institution); ctx.centres[c.institution] = []; ctx.kinds[c.institution] = c.institutionKind; } ctx.centres[c.institution].push(c.name); });
   return ctx;
 }
 const dotFor = (centre) => CENTRE_DOTS[centre?.institutionCode] || "green";
@@ -123,7 +124,7 @@ function startApp(user, centres, session) {
 function statusClass(status) { return status === "Active" ? "status-active" : status === "New member" ? "status-new" : "status-inactive"; }
 function rowMarkup(m) {
   const centre = state.centres.find((c) => c.id === m.centreId);
-  return `<tr data-person="${m.id}" tabindex="0"><td><div class="member-cell"><div class="avatar ${toneFor(m.id)}">${esc(m.initials)}</div><span><strong>${esc(m.name)}</strong><small>${esc(m.levelLabel || m.role)} · ${esc(m.institution.split(" ").slice(0, 2).join(" "))}</small></span></div></td><td><span class="type-badge ${m.role === "Staff" ? "type-staff" : "type-student"}">${m.role === "Staff" ? "▤ Staff" : "♙ Student"}</span></td><td><span class="centre-name"><i class="centre-dot ${dotFor(centre)}"></i>${esc(m.centre)}</span></td><td class="course-cell">${esc(m.course)}</td><td><span class="status-badge ${statusClass(m.status)}"><i></i>${esc(m.status)}</span></td><td><button class="row-more" aria-label="View ${esc(m.name)}">•••</button></td></tr>`;
+  return `<tr data-person="${m.id}" tabindex="0"><td><div class="member-cell"><div class="avatar ${toneFor(m.id)}">${esc(m.initials)}</div><span><strong>${esc(m.name)}</strong><small>${esc(m.levelLabel || m.role)} · ${esc(m.institution.split(" ").slice(0, 2).join(" "))}</small></span></div></td><td><span class="type-badge ${(TYPE_BADGES[m.role] || TYPE_BADGES.Student)[0]}">${(TYPE_BADGES[m.role] || TYPE_BADGES.Student)[1]}</span></td><td><span class="centre-name"><i class="centre-dot ${dotFor(centre)}"></i>${esc(m.centre)}</span></td><td class="course-cell">${esc(m.course)}</td><td><span class="status-badge ${statusClass(m.status)}"><i></i>${esc(m.status)}</span></td><td><button class="row-more" aria-label="View ${esc(m.name)}">•••</button></td></tr>`;
 }
 function bindRows(container) {
   container.querySelectorAll("[data-person]").forEach((row) => {
@@ -280,7 +281,7 @@ function fieldHtml(f) {
   const common = `id="${id}" name="${f.key}" aria-describedby="${describedBy}"${f.required ? ` aria-required="true"` : ""}${f.autocomplete ? ` autocomplete="${f.autocomplete}"` : ""}`;
   let label = `<label for="${id}">${esc(f.label)}${req}</label>`;
   let control;
-  const options = S.optionsOf(f, formCtx());
+  const options = f.options === "roles" ? S.ROLES : S.optionsOf(f, formCtx());
   if (f.type === "choice") {
     label = `<span class="field-label" id="l-${f.key}">${esc(f.label)}${req}</span>`;
     control = `<div class="choice-group" role="radiogroup" aria-labelledby="l-${f.key}" aria-describedby="${describedBy}">${options.map((o) => `<label class="choice"><input type="radio" name="${f.key}" value="${esc(o)}"><span>${esc(o)}</span></label>`).join("")}</div>`;
@@ -316,10 +317,21 @@ function refreshCentreOptions(selected) {
   select.innerHTML = `<option value="">${names.length ? "Select a fellowship centre" : "Choose the institution first"}</option>${names.map((n) => `<option>${esc(n)}</option>`).join("")}`;
   select.value = names.includes(keep) ? keep : names.length === 1 ? names[0] : "";
 }
+// Shows only the member types that suit the chosen institution (e.g. Corpers Fellowship → Corps member).
+function updateRoleChoices(form, ctx) {
+  const allowed = S.optionsOf(S.FIELDS.find((f) => f.key === "role"), ctx, {institution: form.elements.institution.value});
+  form.querySelectorAll('[name="role"]').forEach((input) => {
+    const ok = allowed.includes(input.value);
+    input.closest("label").hidden = !ok;
+    if (!ok && input.checked) input.checked = false;
+  });
+  if (allowed.length === 1) form.querySelector(`[name="role"][value="${allowed[0]}"]`).checked = true;
+}
 function applyConditions() {
+  refreshCentreOptions();
+  updateRoleChoices($("#memberForm"), formCtx());
   const data = readForm();
   FIELDS.forEach((f) => { if (f.when) $(`[data-field="${f.key}"]`).hidden = !S.fieldShown(f, data); });
-  refreshCentreOptions();
   ["kinName", "kinPhone"].forEach((key) => { $(`#f-${key}`).readOnly = data.kinSameAsParent; });
   $("#f-kinRelationship").disabled = data.kinSameAsParent;
 }
@@ -520,7 +532,7 @@ function renderCentresView() {
     const total = list.reduce((sum, c) => sum + statFor(c.id).total, 0);
     const cards = list.map((c, i) => {
       const s = statFor(c.id), pastors = centreAdmin?.centres.find((x) => x.id === c.id)?.pastors;
-      return `<div class="centre-detail-card"><div class="centre-card-icon tone-${i % 3}">▤</div><span class="centre-card-count">${plural(s.total, "member")}</span><h2>${esc(c.name)}</h2><p>${plural(s.total - s.staff, "student")}, ${fmt(s.staff)} staff${pastors !== undefined ? ` · ${pastors ? plural(pastors, "pastor") : "no pastor yet"}` : ""}</p><div class="centre-card-bottom"><button class="text-link" data-centre="${c.id}"><i class="centre-dot ${dotFor(c)}"></i>View members ›</button>${isAdmin() ? `<span class="centre-card-actions"><button class="text-link" data-centre-action="rename" data-id="${c.id}">Rename</button><button class="text-link danger-link" data-centre-action="remove" data-id="${c.id}">Remove</button></span>` : ""}</div></div>`;
+      return `<div class="centre-detail-card"><div class="centre-card-icon tone-${i % 3}">▤</div><span class="centre-card-count">${plural(s.total, "member")}</span><h2>${esc(c.name)}</h2><p>${c.institutionKind === "corpers" ? plural(s.corps || 0, "corps member") : `${plural(s.total - s.staff - (s.corps || 0), "student")}, ${fmt(s.staff)} staff`}${pastors !== undefined ? ` · ${pastors ? plural(pastors, "pastor") : "no pastor yet"}` : ""}</p><div class="centre-card-bottom"><button class="text-link" data-centre="${c.id}"><i class="centre-dot ${dotFor(c)}"></i>View members ›</button>${isAdmin() ? `<span class="centre-card-actions"><button class="text-link" data-centre-action="rename" data-id="${c.id}">Rename</button><button class="text-link danger-link" data-centre-action="remove" data-id="${c.id}">Remove</button></span>` : ""}</div></div>`;
     }).join("");
     return `<section class="institution-group"><header class="institution-head"><div><div class="panel-kicker">${esc(inst.shortName)}</div><h2>${esc(inst.name)}</h2><p>${plural(list.length, "fellowship centre")} · ${plural(total, "member")}</p></div>${isAdmin() ? `<button class="button button-secondary" data-add-centre="${inst.id}">＋ Add centre</button>` : ""}</header><div class="centre-cards">${cards || `<p class="institution-empty">No fellowship centres yet.</p>`}</div></section>`;
   }).join("");

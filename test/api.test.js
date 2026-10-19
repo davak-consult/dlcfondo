@@ -246,7 +246,7 @@ describe("fellowship centres", () => {
   });
   test("lists institutions with their centres and counts", async () => {
     const res = await admin.get("/api/centres");
-    assert.deepEqual(res.body.institutions.map((i) => i.shortName), ["Adeyemi", "UNIMED", "Wesley"]);
+    assert.deepEqual(res.body.institutions.map((i) => i.shortName), ["Adeyemi", "UNIMED", "Wesley", "Corpers"]);
     const adeyemi = res.body.centres.filter((c) => c.institutionId === 1).map((c) => c.name);
     assert.deepEqual(adeyemi, ["Adeyemi Centre", "FUTA Road Centre"]);
     assert.ok(res.body.centres.find((c) => c.name === "Adeyemi Centre").pastors >= 1);
@@ -294,6 +294,38 @@ describe("fellowship centres", () => {
   test("pastors can't manage centres", async () => {
     assert.equal((await roadPastor.get("/api/centres")).status, 403);
     assert.equal((await adeyemiPastor.post("/api/centres").send({ institutionId: 1, name: "Mine" })).status, 403);
+  });
+});
+
+describe("corpers fellowship", () => {
+  const corper = (overrides = {}) => h.validMember({ institution: "Corpers Fellowship", centre: "Corpers Fellowship Centre", role: "Corps member", stateCode: "OD/25B/1234", ppa: "St. Peter's Grammar School, Akure", lodgeAddress: "Corpers Lodge, Oke Aro", phone: "08090000001", firstName: "Chidi", ...overrides });
+  test("is listed like an institution, offering only the corps member type", async () => {
+    const { body } = await h.client().get("/api/public/centres");
+    assert.deepEqual(body.centres["Corpers Fellowship"], ["Corpers Fellowship Centre"]);
+    assert.equal(body.kinds["Corpers Fellowship"], "corpers");
+    assert.equal(body.kinds["Wesley University"], "campus");
+  });
+  test("corps members give state code, PPA and lodge address, not student details", async () => {
+    const res = await admin.post("/api/members").send(corper({ faculty: "Ignored", residence: "Ignored" }));
+    assert.equal(res.status, 201, JSON.stringify(res.body));
+    assert.deepEqual([res.body.role, res.body.stateCode, res.body.faculty, res.body.residence, res.body.levelLabel, res.body.course], ["Corps member", "OD/25B/1234", "", "", "Corps member", "St. Peter's Grammar School, Akure"]);
+    const missing = await admin.post("/api/members").send(corper({ stateCode: "", ppa: "", lodgeAddress: "", phone: "08090000002" }));
+    assert.deepEqual(["stateCode", "ppa", "lodgeAddress"].filter((k) => missing.body.errors[k]), ["stateCode", "ppa", "lodgeAddress"]);
+    assert.ok((await admin.post("/api/members").send(corper({ stateCode: "12345", phone: "08090000003" }))).body.errors.stateCode);
+  });
+  test("member type must suit the institution", async () => {
+    assert.ok((await admin.post("/api/members").send(corper({ role: "Student", phone: "08090000004" }))).body.errors.role);
+    assert.ok((await admin.post("/api/members").send(h.validMember({ role: "Corps member", phone: "08090000005" }))).body.errors.role);
+  });
+  test("stats count corps members separately from students", async () => {
+    const stats = (await admin.get("/api/members/stats")).body;
+    assert.ok(stats.corps >= 1);
+    assert.equal(stats.students + stats.staff + stats.corps, stats.total);
+  });
+  test("corps members can register online", async () => {
+    const res = await h.client().post("/api/public/register").send({ ...corper({ phone: "08090000006", firstName: "Ngozi" }), consent: true });
+    assert.equal(res.status, 201, JSON.stringify(res.body));
+    assert.equal(res.body.institution, "Corpers Fellowship");
   });
 });
 

@@ -10,19 +10,19 @@ const DATE_FIELDS = new Set(STORED.filter((f) => f.type === "date").map((f) => f
 let centreCache = null;
 async function centres() {
   centreCache ||= (await query(
-    `SELECT c.id, c.code, c.name, i.id AS institutionId, i.name AS institution, i.short_name AS institutionShort, i.code AS institutionCode
+    `SELECT c.id, c.code, c.name, i.id AS institutionId, i.name AS institution, i.short_name AS institutionShort, i.code AS institutionCode, i.kind AS institutionKind
        FROM centres c JOIN institutions i ON i.id = c.institution_id ORDER BY i.id, c.name`)).rows;
   return centreCache;
 }
 const clearCentreCache = () => { centreCache = null; };
-const institutionList = async () => (await query("SELECT id, code, name, short_name AS shortName FROM institutions ORDER BY id")).rows;
+const institutionList = async () => (await query("SELECT id, code, name, short_name AS shortName, kind FROM institutions ORDER BY id")).rows;
 const institutions = async () => [...new Set((await centres()).map((c) => c.institution))];
 
 // What the member form may offer: institutions, and the centres under each (by institution name).
 function formOptions(list) {
-  const centresByInstitution = {};
-  list.forEach((c) => { (centresByInstitution[c.institution] ||= []).push(c.name); });
-  return { institutions: Object.keys(centresByInstitution), centres: centresByInstitution };
+  const centresByInstitution = {}, kinds = {};
+  list.forEach((c) => { (centresByInstitution[c.institution] ||= []).push(c.name); kinds[c.institution] = c.institutionKind; });
+  return { institutions: Object.keys(centresByInstitution), centres: centresByInstitution, kinds };
 }
 
 function fromRow(row, centreList) {
@@ -32,8 +32,8 @@ function fromRow(row, centreList) {
   return Object.assign(member, {
     name: [member.firstName, member.otherNames, member.surname].filter(Boolean).join(" "),
     initials: `${member.firstName[0] || ""}${member.surname[0] || ""}`.toUpperCase(),
-    course: member.role === "Staff" ? member.position : member.programme,
-    levelLabel: member.role === "Staff" ? "Staff" : member.level,
+    course: member.role === "Staff" ? member.position : member.role === "Corps member" ? member.ppa : member.programme,
+    levelLabel: member.role === "Student" ? member.level : member.role,
     approval: row.approval || "approved",
     createdAt: row.created_at?.toISOString?.() ?? row.created_at,
     updatedAt: row.updated_at?.toISOString?.() ?? row.updated_at
