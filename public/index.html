@@ -13,11 +13,24 @@
   <div class="boot" id="boot"><img src="./images/dlcf-logo.png" alt="" width="64" height="64"><span>Loading…</span></div>
 
   <!-- Sign in -->
-  <main class="auth-screen" id="loginScreen" hidden>
+  <main class="auth-screen auth-split" id="loginScreen" hidden>
+    <aside class="auth-brand">
+      <div class="auth-brand-top"><span class="auth-logo"><img src="./images/dlcf-logo.png" alt="" width="40" height="40"></span><div><strong>DLCF</strong><span>Ondo State South</span></div></div>
+      <div class="auth-brand-copy">
+        <p class="auth-eyebrow">Welcome to</p>
+        <h2>Deeper Life Campus Fellowship, Ondo State South</h2>
+        <ul class="abc">
+          <li><b>A</b>ssembly of saintly scholars</li>
+          <li><b>B</b>eacon of Holiness &amp; Excellence</li>
+          <li><b>C</b>onglomeration of heaven-bound pilgrims</li>
+        </ul>
+        <p class="motto"><span><small>We</small> <strong>Love</strong></span> <span><small>We</small> <strong>Care</strong></span> <span><small>We</small> <strong>Share</strong></span></p>
+      </div>
+    </aside>
+    <div class="auth-pane">
     <form class="auth-card" id="loginForm" novalidate>
-      <img src="./images/dlcf-logo.png" alt="DLCF logo" width="72" height="72">
-      <h1>DLCF Ondo Region</h1>
-      <p class="auth-sub">Sign in to the member management dashboard.</p>
+      <h1>Sign in</h1>
+      <p class="auth-sub">Welcome back. Sign in to the member management dashboard.</p>
       <p class="auth-notice" id="loginNotice" hidden></p>
       <div class="field"><label for="loginEmail">Email address</label><input id="loginEmail" name="email" type="email" autocomplete="username" required></div>
       <div class="field"><label for="loginPassword">Password</label><div class="password-wrap"><input id="loginPassword" name="password" type="password" autocomplete="current-password" required><button type="button" class="reveal" data-reveal="loginPassword" aria-label="Show password">Show</button></div></div>
@@ -26,6 +39,7 @@
       <p class="auth-foot">Forgotten your password? Ask the regional admin to reset it.</p>
       <p class="auth-foot">Want to become a member? <a href="/register">Register here</a></p>
     </form>
+    </div>
   </main>
 
   <!-- Change password (forced after a temporary password, or by choice) -->

@@ -137,3 +137,112 @@ mark{background:#ffe9a8;color:inherit;border-radius:3px;padding:0 1px}
   .chip-row .sort-select{margin-left:0}
   .search-row kbd{display:none}
 }
+
+/* =====================================================================================
+   Theme: DLCF Ondo State South. Deep indigo brand, warm amber accent, Montserrat throughout.
+   ===================================================================================== */
+:root{--primary:#3e4095;--deep:#2f3180;--night:#23245c;--accent:#f08a4b;--amber:#ffb98d;--ink:#15162b;--muted:#6e7087;--line:#e6e6f0;--canvas:#f4f4f9;--card-shadow:0 1px 2px #15162b08,0 8px 24px #15162b0b}
+body{background:var(--canvas);color:#34354d}
+
+/* Sidebar */
+.sidebar{overflow-y:auto;scrollbar-width:thin;scrollbar-color:#ffffff33 transparent;background:radial-gradient(140% 40% at 0% 0%,#4b4db0 0%,transparent 55%),linear-gradient(180deg,var(--deep),var(--night));border-right:0;color:#c9caee}
+.brand-mark{background:#fff;border-radius:12px;padding:3px;box-shadow:0 4px 12px #0000002e}
+.brand-copy strong{color:#fff;font-size:14px}.brand-copy strong span{color:#c3c4ee;font-weight:600}
+.brand-copy small{color:#a5a7da}
+.region-label,.nav-label{color:#8f91c9}
+.region-switcher{background:#ffffff12;border-color:#ffffff1f;color:#fff}
+.nav-item{color:#c9caee;font-size:13px;height:41px;border-radius:10px}
+.nav-item:hover,.centre-link:hover{background:#ffffff12;color:#fff}
+.nav-active{background:#ffffff1f;color:#fff;box-shadow:inset 3px 0 0 var(--amber)}
+.nav-count{color:#a5a7da;font-weight:600}
+.nav-count-alert{background:var(--accent);color:#fff}
+.centre-link{color:#c9caee;font-size:12.5px}
+.centre-link small{color:#8f91c9}
+.help-card{background:#ffffff0f;border-color:#ffffff1a;color:#c3c4ee}
+.help-card strong{color:#fff}.help-card p{color:#b9bae6}
+.help-card button,.help-card a{color:var(--amber)!important}
+.help-icon{color:var(--amber)}
+.profile-switch{border-top-color:#ffffff1f}
+.profile-info strong{color:#fff}.profile-info small{color:#a5a7da}
+.sidebar .avatar-admin{background:#ffffff26;color:#fff}
+.topbar .avatar-admin,.topbar .avatar{background:var(--primary);color:#fff}
+.account-actions .text-link{color:var(--amber)}
+.mobile-close{color:#fff}
+
+/* Top bar and page heading */
+.topbar{background:#ffffffd9;backdrop-filter:saturate(1.4) blur(10px);border-bottom-color:var(--line)}
+.page-heading h1{font-size:28px;font-weight:800;letter-spacing:-.03em;color:var(--ink)}
+.page-subtitle{color:var(--muted)}
+.eyebrow{color:#8a8ca3}.eyebrow-line{background:var(--accent);width:22px}
+
+/* Cards */
+.panel,.stat-card,.centre-detail-card{border:1px solid var(--line);border-radius:16px;box-shadow:var(--card-shadow);background:#fff}
+.stat-card{padding:20px 20px 16px}
+.stat-top{font-size:12.5px;font-weight:600;color:#6e7087}
+.stat-icon{width:38px;height:38px;border-radius:12px;font-size:16px}
+.stat-value{font-size:32px;font-weight:800;letter-spacing:-.04em;color:var(--ink);margin:10px 0 8px}
+.panel-kicker{color:#8a8ca3;letter-spacing:.12em;font-size:11px}
+.panel h2,.members-heading h2,.directory-toolbar h2{font-size:16px;font-weight:700;color:var(--ink);letter-spacing:-.02em}
+.centre-detail-card{padding:20px}
+.centre-detail-card h2{font-size:15px;font-weight:700}
+.centre-card-icon{border-radius:12px}
+
+/* Buttons */
+.button{height:38px;border-radius:10px;padding:0 16px;font-size:13px;font-weight:700}
+.button-primary{background:var(--primary);border-color:var(--primary);box-shadow:0 6px 16px #3e409538}
+.button-primary:hover{background:var(--deep);border-color:var(--deep)}
+.button-secondary{border-color:#dfe0ea;color:#3d3e55}
+.text-link{font-weight:700}
+
+/* Tables */
+.member-table th{font-size:11px;letter-spacing:.09em;color:#8d8fa6;border-color:#eeeef4}
+.member-table td{font-size:13px;color:#4a4b60;border-bottom-color:#f1f1f6;height:58px}
+.member-table tbody tr{transition:background .12s}
+.member-table tbody tr[data-person]:hover,.member-table tbody tr[data-registration]:hover,.member-table tbody tr[data-user]:hover{background:#f8f8fd}
+.member-cell strong{color:var(--ink);font-weight:700}
+.avatar{width:36px;height:36px;font-size:12.5px}
+.type-badge{border-radius:999px;padding:4px 10px;font-size:12px}
+.status-badge{padding:4px 10px;border-radius:999px;font-weight:600;font-size:12px;background:#f0f0f5;color:#5d5e75}
+.status-badge.status-active{background:#e8f6ef;color:#1d7a55}.status-badge.status-active i{background:#1f9d6b}
+.status-badge.status-new{background:#fff1e7;color:#b5531f}.status-badge.status-new i{background:var(--accent)}
+.status-badge.status-inactive{background:#f0f0f5;color:#6e7087}.status-badge.status-inactive i{background:#9a9cb0}
+
+/* Sign-in: brand panel beside the form */
+.auth-split{display:grid;grid-template-columns:minmax(380px,44%) 1fr;padding:0;background:#fff;align-items:stretch}
+.auth-brand{padding:40px 48px;color:#e8e8fb;display:flex;flex-direction:column;justify-content:space-between;gap:40px;background:radial-gradient(120% 60% at 0% 0%,#4b4db0 0%,transparent 60%),radial-gradient(90% 50% at 100% 100%,#f08a4b33 0%,transparent 60%),linear-gradient(160deg,var(--deep),var(--night))}
+.auth-brand-top{display:flex;align-items:center;gap:12px}
+.auth-brand-top strong{display:block;color:#fff;font-size:16px}.auth-brand-top span{font-size:13px;color:#c3c4ee}
+.auth-logo{display:grid;place-items:center;width:52px;height:52px;border-radius:14px;background:#fff;box-shadow:0 4px 14px #00000026}
+.auth-eyebrow{margin:0 0 10px;font-size:12px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--amber)}
+.auth-brand h2{margin:0 0 24px;font-size:34px;line-height:1.15;letter-spacing:-.025em;color:#fff;font-weight:800;max-width:520px}
+.auth-brand .abc{list-style:none;margin:0 0 28px;padding:0 0 0 16px;border-left:2px solid #ffb98d66;display:flex;flex-direction:column;gap:8px}
+.auth-brand .abc li{font-size:16px;color:#e3e4fb;line-height:1.4}
+.auth-brand .abc b{font-size:26px;font-weight:800;color:var(--amber);line-height:1}
+.auth-brand .motto{display:grid;grid-template-columns:repeat(3,1fr);max-width:440px;margin:0;padding:16px 0;border-top:1px solid #ffffff2b;border-bottom:1px solid #ffffff2b}
+.auth-brand .motto span{display:flex;flex-direction:column;align-items:center}
+.auth-brand .motto span+span{border-left:1px solid #ffffff26}
+.auth-brand .motto small{font-size:10px;font-weight:700;letter-spacing:.28em;text-transform:uppercase;color:var(--amber);margin-bottom:3px;padding-left:.28em}
+.auth-brand .motto strong{font-size:21px;font-weight:800;color:#fff;letter-spacing:-.01em}
+.auth-pane{display:flex;align-items:center;justify-content:center;padding:40px 24px}
+.auth-split .auth-card{border:0;box-shadow:none;background:transparent;width:min(400px,100%);padding:0;gap:18px}
+.auth-split .auth-card h1{text-align:left;font-size:30px;font-weight:800;letter-spacing:-.03em}
+.auth-split .auth-sub{text-align:left;margin:-8px 0 8px;font-size:14px}
+.auth-split .field input{height:50px;border-radius:12px;font-size:15px;border-width:1.5px}
+.auth-split .auth-submit{height:52px;border-radius:12px;font-size:15px;box-shadow:0 8px 20px #3e409540}
+.auth-split .auth-foot{text-align:left;font-size:13px}
+.auth-foot a{color:var(--primary);font-weight:700}
+#passwordScreen{background:radial-gradient(1000px 500px at 50% -10%,#e2e2f6 0%,var(--canvas) 60%)}
+.auth-card{border-radius:20px}
+@media(max-width:900px){
+  .auth-split{grid-template-columns:1fr;align-content:start}
+  .auth-brand{padding:24px 20px 26px;gap:18px}
+  .auth-brand h2{font-size:22px;margin-bottom:14px}
+  .auth-brand .abc{margin-bottom:16px}.auth-brand .abc li{font-size:14px}.auth-brand .abc b{font-size:20px}
+  .auth-brand .motto strong{font-size:17px}
+  .auth-logo{width:44px;height:44px}
+  .auth-pane{padding:28px 20px 40px;align-items:flex-start}
+}
+.sidebar .centre-dot.green{background:#9fa1ff}.sidebar .centre-dot.violet{background:#f0a3bd}.sidebar .centre-dot.amber{background:#ffb27d}.sidebar .centre-dot.teal{background:#6fd3c3}
+.sidebar-bottom{padding-top:12px}
+/* Montserrat everywhere: form controls don't inherit the page font by default. */
+button,input,select,textarea,optgroup{font-family:inherit}
