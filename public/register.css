@@ -6,7 +6,7 @@
   --line: #e3e4ee; --line-strong: #cfd1df; --surface: #fff; --canvas: #f7f7fb;
   --danger: #c93a3a; --danger-soft: #fdf1f1; --success: #1f9d6b;
   --radius: 12px; --shadow: 0 1px 2px #15162b0d, 0 8px 24px #15162b0f;
-  --font: "Inter", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font: "Montserrat", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
 }
 *, *::before, *::after { box-sizing: border-box; }
 html { -webkit-text-size-adjust: 100%; }
@@ -37,7 +37,10 @@ a:hover { text-decoration: underline; }
 .logo { display: grid; place-items: center; width: 48px; height: 48px; border-radius: 14px; background: #fff; box-shadow: 0 4px 14px #00000026; flex: none; }
 .brand .eyebrow { margin: 0 0 10px; font-size: 12px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; color: #ffb98d; }
 .brand h1 { margin: 0 0 12px; font-size: 30px; line-height: 1.15; letter-spacing: -.02em; color: #fff; font-weight: 800; }
-.brand-copy p:last-child { margin: 0; color: #c9caee; font-size: 15px; }
+.brand-copy p { margin: 0 0 14px; color: #c9caee; font-size: 15px; }
+.motto { display: inline-block; margin: 4px 0 0 !important; padding: 8px 14px; border-radius: 999px; background: #ffffff14; border: 1px solid #ffffff26; color: #fff !important; font-weight: 700; font-size: 14px !important; letter-spacing: .01em; }
+.brand h1 { font-size: 27px; }
+.mobile-welcome { display: none; }
 
 .steps { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
 .steps button { all: unset; box-sizing: border-box; width: 100%; display: flex; align-items: center; gap: 14px; padding: 10px 12px; border-radius: 10px; color: #b9bae6; font-size: 14.5px; font-weight: 500; }
@@ -175,6 +178,11 @@ input[type=date].input { padding-right: 12px; }
   .mobile-head strong { display: block; font-size: 15px; color: var(--ink); }
   .mobile-head span { font-size: 13px; color: var(--muted); }
   .progress { display: block; margin-bottom: 26px; }
+  .mobile-welcome { display: block; margin: 4px 0 22px; padding: 20px; border-radius: 16px; color: #e8e8fb; background: radial-gradient(120% 80% at 0% 0%, #4b4db0 0%, transparent 60%), linear-gradient(160deg, var(--brand-strong), var(--brand-deep)); }
+  .mobile-welcome .eyebrow { margin: 0 0 6px; font-size: 11px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; color: #ffb98d; }
+  .mobile-welcome h1 { margin: 0 0 10px; font-size: 21px; line-height: 1.2; letter-spacing: -.01em; color: #fff; font-weight: 800; }
+  .mobile-welcome p { margin: 0 0 12px; font-size: 14px; color: #c9caee; }
+  .mobile-welcome .motto { margin: 0 !important; font-size: 13px !important; }
   .form, .done, .signin, .progress { max-width: none; }
   .step-head h2 { font-size: 23px; }
   .actions { position: fixed; left: 0; right: 0; bottom: 0; margin: 0; padding: 12px 20px calc(12px + env(safe-area-inset-bottom)); background: #ffffffeb; backdrop-filter: blur(10px); border-top: 1px solid var(--line); z-index: 10; }

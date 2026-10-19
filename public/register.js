@@ -118,6 +118,7 @@ function goTo(index) {
   $("#progressBar").style.width = `${((index + 1) / TITLES.length) * 100}%`;
   $("#mobileStep").textContent = `Step ${index + 1} of ${TITLES.length} · ${TITLES[index]}`;
   $("#backButton").hidden = index === 0;
+  $("#mobileWelcome").hidden = index !== 0;
   $("#nextButton").textContent = index === REVIEW ? "Submit registration" : "Continue";
   $("#registerError").hidden = true;
   if (index === REVIEW) renderReview();
@@ -168,7 +169,7 @@ async function submit() {
       throw new Error(data.error || "Something went wrong. Please try again.");
     }
     $("#doneText").textContent = `Your registration has been sent to ${data.centre}${data.institution ? `, ${data.institution}` : ""}. Your pastor will review it and add you to the fellowship directory.`;
-    $("#registerForm").hidden = true; $(".progress").hidden = true; $("#done").hidden = false;
+    $("#registerForm").hidden = true; $(".progress").hidden = true; $("#mobileWelcome").hidden = true; $("#done").hidden = false;
     $$("#stepList li").forEach((li) => { li.className = "complete"; li.querySelector("button").disabled = true; });
     $("#mobileStep").textContent = "Registration sent";
     window.scrollTo({top: 0});

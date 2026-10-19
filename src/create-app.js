@@ -1,3 +1,5 @@
+const fs = require("fs");
+const crypto = require("crypto");
 const path = require("path");
 const express = require("express");
 const helmet = require("helmet");
@@ -15,6 +17,12 @@ function requestLogger(req, res, next) {
   })));
   next();
 }
+
+const PUBLIC = path.join(__dirname, "..", "public");
+const fingerprint = (file) => crypto.createHash("sha256").update(fs.readFileSync(path.join(PUBLIC, file))).digest("hex").slice(0, 12);
+// Each page with its local script/stylesheet links stamped with ?v=<content hash>. Built once at start-up.
+const pages = Object.fromEntries(["index.html", "register.html"].map((file) => [file,
+  fs.readFileSync(path.join(PUBLIC, file), "utf8").replace(/(src|href)="\.\/([\w./-]+\.(?:js|css))"/g, (_, attr, asset) => `${attr}="./${asset}?v=${fingerprint(asset)}"`)]));
 
 function createApp() {
   const app = express();
@@ -53,9 +61,14 @@ function createApp() {
   api.use((req, res) => res.status(404).json({ error: "Not found." }));
   app.use("/api", api);
 
-  app.get("/register", (req, res) => res.set("Cache-Control", "no-cache").sendFile(path.join(__dirname, "..", "public", "register.html")));
-  app.use(express.static(path.join(__dirname, "..", "public"), {
-    setHeaders: (res, file) => res.set("Cache-Control", file.endsWith(".html") ? "no-cache" : "public, max-age=3600")
+  // Pages are never cached, and the scripts and styles they link to carry a fingerprint of their contents
+  // (e.g. app.js?v=3f9a…), so after an update browsers always get matching files, never an old mix.
+  const sendPage = (file) => (req, res) => res.set("Cache-Control", "no-cache").type("html").send(pages[file]);
+  app.get(["/", "/index.html"], sendPage("index.html"));
+  app.get(["/register", "/register.html"], sendPage("register.html"));
+  app.use(express.static(PUBLIC, {
+    index: false,
+    setHeaders: (res) => res.set("Cache-Control", res.req.query.v ? "public, max-age=31536000, immutable" : "public, max-age=3600")
   }));
 
   // Errors: details go to the server log, never to the browser.

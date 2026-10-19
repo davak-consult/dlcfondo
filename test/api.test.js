@@ -451,6 +451,18 @@ describe("public registration and approval", () => {
     assert.equal(res.status, 200);
     assert.match(res.text, /register\.js/);
   });
+  test("pages link fingerprinted scripts and styles so updates are never mixed with cached files", async () => {
+    for (const path of ["/", "/register"]) {
+      const res = await h.request(h.app).get(path);
+      assert.equal(res.headers["cache-control"], "no-cache");
+      const assets = [...res.text.matchAll(/(?:src|href)="\.\/([\w./-]+\.(?:js|css))(\?v=[0-9a-f]{12})?"/g)];
+      assert.ok(assets.length >= 2, path);
+      assert.ok(assets.every((m) => m[2]), `${path}: every local asset is fingerprinted`);
+      const asset = await h.request(h.app).get(`/${assets[0][1]}${assets[0][2]}`);
+      assert.equal(asset.status, 200);
+      assert.match(asset.headers["cache-control"], /immutable/);
+    }
+  });
   test("a registration is saved as pending, ignoring staff-only fields", async () => {
     const res = await visitor().post("/api/public/register").send(registration({ status: "Active", notes: "let me in" }));
     assert.equal(res.status, 201);
