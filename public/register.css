@@ -38,7 +38,6 @@ a:hover { text-decoration: underline; }
 .brand .eyebrow { margin: 0 0 10px; font-size: 12px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; color: #ffb98d; }
 .brand h1 { margin: 0 0 12px; font-size: 30px; line-height: 1.15; letter-spacing: -.02em; color: #fff; font-weight: 800; }
 .brand-copy p { margin: 0 0 14px; color: #c9caee; font-size: 15px; }
-.motto { display: inline-block; margin: 4px 0 0 !important; padding: 8px 14px; border-radius: 999px; background: #ffffff14; border: 1px solid #ffffff26; color: #fff !important; font-weight: 700; font-size: 14px !important; letter-spacing: .01em; }
 .brand h1 { font-size: 27px; }
 .mobile-welcome { display: none; }
 
@@ -182,7 +181,6 @@ input[type=date].input { padding-right: 12px; }
   .mobile-welcome .eyebrow { margin: 0 0 6px; font-size: 11px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; color: #ffb98d; }
   .mobile-welcome h1 { margin: 0 0 10px; font-size: 21px; line-height: 1.2; letter-spacing: -.01em; color: #fff; font-weight: 800; }
   .mobile-welcome p { margin: 0 0 12px; font-size: 14px; color: #c9caee; }
-  .mobile-welcome .motto { margin: 0 !important; font-size: 13px !important; }
   .form, .done, .signin, .progress { max-width: none; }
   .step-head h2 { font-size: 23px; }
   .actions { position: fixed; left: 0; right: 0; bottom: 0; margin: 0; padding: 12px 20px calc(12px + env(safe-area-inset-bottom)); background: #ffffffeb; backdrop-filter: blur(10px); border-top: 1px solid var(--line); z-index: 10; }
@@ -197,3 +195,21 @@ input[type=date].input { padding-right: 12px; }
   .choice { min-width: 0; }
   .choice span { padding: 0 12px; gap: 8px; white-space: nowrap; font-size: 14.5px; }
 }
+
+/* A · B · C motto lines: each line starts with a large accent initial */
+.abc-intro { margin: 0 0 8px !important; font-weight: 600; color: #e8e8fb !important; }
+.abc { list-style: none; margin: 0 0 18px; padding: 0 0 0 14px; display: flex; flex-direction: column; gap: 6px; border-left: 2px solid #ffb98d66; }
+.abc li { font-size: 15.5px; color: #e3e4fb; line-height: 1.4; }
+.abc b { font-size: 24px; font-weight: 800; color: #ffb98d; line-height: 1; }
+.mobile-welcome .abc { margin-bottom: 14px; }
+.mobile-welcome .abc li { font-size: 14px; }
+.mobile-welcome .abc b { font-size: 20px; }
+
+/* Motto: three typeset columns (small "WE" over a bold word) between hairlines */
+.motto { display: grid !important; grid-template-columns: repeat(3, 1fr); margin: 6px 0 0 !important; padding: 14px 0; border-top: 1px solid #ffffff2b; border-bottom: 1px solid #ffffff2b; }
+.motto span { display: flex; flex-direction: column; align-items: center; }
+.motto span + span { border-left: 1px solid #ffffff26; }
+.motto small { font-size: 10px; font-weight: 700; letter-spacing: .28em; text-transform: uppercase; color: #ffb98d; margin-bottom: 3px; padding-left: .28em; }
+.motto strong { font-size: 19px; font-weight: 800; letter-spacing: -.01em; line-height: 1.1; color: #fff; }
+.mobile-welcome .motto { padding: 11px 0; }
+.mobile-welcome .motto strong { font-size: 17px; }
