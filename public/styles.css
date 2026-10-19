@@ -139,7 +139,7 @@ mark{background:#ffe9a8;color:inherit;border-radius:3px;padding:0 1px}
 }
 
 /* =====================================================================================
-   Theme: DLCF Ondo State South. Deep indigo brand, warm amber accent, Montserrat throughout.
+   Theme: DLCF Ondo Region. Deep indigo brand, warm amber accent, Montserrat throughout.
    ===================================================================================== */
 :root{--primary:#3e4095;--deep:#2f3180;--night:#23245c;--accent:#f08a4b;--amber:#ffb98d;--ink:#15162b;--muted:#6e7087;--line:#e6e6f0;--canvas:#f4f4f9;--card-shadow:0 1px 2px #15162b08,0 8px 24px #15162b0b}
 body{background:var(--canvas);color:#34354d}
